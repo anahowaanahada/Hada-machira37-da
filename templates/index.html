@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-cg-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WormGPT — v1.0 Public</title>
+<style>
+/* ===== WormGPT — Red Theme ===== */
+:root{
+  --cg-red:#CC0000;
+  --cg-red-dark:#990000;
+  --cg-red-soft:rgba(204,0,0,.15);
+  --font:-apple-system,"Segoe UI",system-ui,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --motion:1; --compact:0; --fade-duration:.25s; --spin-duration:.8s; --pulse-duration:1.4s;
+  --radius:16px;
+  /* Dark Red Theme */
+  --bg:#161616;
+  --bg-secondary:#1f1f1f;
+  --surface:#282828;
+  --text:#ececf1;
+  --text-secondary:#b4b4be;
+  --text-tertiary:#6e6e78;
+  --border:#3a2424;
+  --bubble-user:#3a1414;
+  --code-bg:#1a1a1a;
+  --sidebar-bg:#101010;
+  --sidebar-text:#ececf1;
+  --sidebar-dim:#8e8ea0;
+  --sidebar-hover:#CC000022;
+  --composer-bg:#1f1f1f;
+  --shadow:0 4px 24px rgba(204,0,0,.15);
+  --backdrop:rgba(0,0,0,.75);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);height:100dvh;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
+::selection{background:rgba(204,0,0,.3)}
+svg{display:block}
+.ic{width:20px;height:20px;flex:none}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ===== App layout ===== */
+.app{display:flex;height:100dvh}
+/* Sidebar */
+.sidebar{width:260px;flex:none;background:var(--sidebar-bg);color:var(--sidebar-text);display:flex;flex-direction:column;z-index:40;transition:transform .25s ease}
+.sidebar-top{padding:10px 8px 4px;display:flex;align-items:center;gap:6px}
+.icon-btn{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;color:inherit;transition:background .15s;flex:none}
+.icon-btn:hover{background:var(--sidebar-hover)}
+.wordmark{font-weight:600;font-size:15px;display:flex;align-items:center;gap:7px;padding:4px 6px;user-select:none}
+.cg-logo{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;background:transparent;border:0;border-radius:0;padding:0;margin:0;vertical-align:middle}.cg-logo svg{width:32px;height:32px;display:block;flex:0 0 32px;background:transparent;border:0;border-radius:0;padding:0;margin:0}
+.nav{display:flex;flex-direction:column;gap:1px;padding:6px 8px}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:8px;font-size:14px;color:var(--sidebar-text);text-align:start;width:100%;transition:background .15s}
+.nav-item:hover{background:var(--sidebar-hover)}
+.nav-item svg{width:17px;height:17px;color:var(--sidebar-dim);flex:none}
+.nav-item.primary{border:1px solid #CC000044}
+.recents{flex:1;overflow-y:auto;padding:8px}
+.recents-label{font-size:11px;color:var(--sidebar-dim);padding:8px 11px 4px;font-weight:600}
+.recent-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 11px;border-radius:8px;font-size:13.5px;color:var(--sidebar-text);text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-item:hover{background:var(--sidebar-hover)}
+.recent-item svg{width:15px;height:15px;color:var(--sidebar-dim);flex:none}
+.sidebar-footer{padding:8px;border-top:1px solid #CC000022}
+.user-chip{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;border-radius:8px;text-align:start}
+.user-chip:hover{background:var(--sidebar-hover)}
+.user-chip b{font-size:13.5px;display:block}
+.user-chip small{font-size:11.5px;color:var(--sidebar-dim)}
+/* Main column */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+.header{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 12px;border-bottom:1px solid #3a2424;position:relative;z-index:30}
+.header .menu-btn{display:none}
+.header-brand{display:flex;align-items:center;gap:7px;height:40px;font-size:16.5px;font-weight:600;color:var(--text);white-space:nowrap}
+.header-brand .cg-logo{width:32px;height:32px;flex:0 0 32px}
+.header-brand .cg-logo svg{width:32px;height:32px;flex:0 0 32px}
+.model-btn{display:flex;align-items:center;gap:5px;padding:7px 11px;border-radius:10px;font-size:16.5px;font-weight:600;color:var(--text)}
+.model-btn:hover{background:var(--bg-secondary)}
+.model-btn .chev{width:15px;height:15px;color:var(--text-tertiary)}
+.header-spacer{flex:1}
+.share-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:99px;border:1px solid #3a2424;font-size:13px;transition:background .15s;color:var(--text-secondary)}
+.share-btn:hover{background:var(--bg-secondary)}
+.share-btn svg{width:14px;height:14px}
+/* Model dropdown / generic menu */
+.menu{position:fixed;background:var(--surface);border:1px solid #3a2424;border-radius:12px;box-shadow:var(--shadow);padding:5px;min-width:230px;z-index:80;display:none}
+.menu.open{display:block}
+.menu-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 11px;border-radius:8px;font-size:13.5px;text-align:start;color:var(--text)}
+.menu-item:hover{background:var(--bg-secondary)}
+.menu-item.active{color:var(--cg-red);font-weight:600}
+.menu-sep{height:1px;background:#3a2424;margin:5px 8px}
+.menu-label{font-size:11px;color:var(--text-tertiary);padding:6px 11px 3px;font-weight:600}
+/* Thread */
+.thread{flex:1;overflow-y:auto;padding:var(--thread-pad,20px) 0}
+.content,.msg.user .bubble,.composer textarea{font-size:var(--message-font-size,15.5px)}
+.thread-inner{max-width:768px;margin:0 auto;padding:0 20px;display:flex;flex-direction:column;gap:var(--thread-gap,24px)}
+.msg{display:flex;gap:14px;animation:fadein var(--fade-duration,.25s) ease}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.msg.user{justify-content:flex-end}
+.msg.user .bubble{background:var(--bubble-user);border:1px solid #4a2424;border-radius:18px;padding:10px 16px;max-width:78%;font-size:15.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--text)}
+[dir="rtl"] .msg.user{justify-content:flex-start}
+.avatar{width:32px;height:32px;border-radius:0;background:transparent;display:flex;align-items:center;justify-content:center;flex:0 0 32px;margin-top:2px;padding:0;border:0}
+.avatar svg{width:32px;height:32px;display:block;flex:0 0 32px;background:transparent;border:0;border-radius:0;padding:0;margin:0}
+.msg .body{min-width:0;max-width:100%;flex:1}
+.content{font-size:15.5px;line-height:1.7;word-break:break-word;color:var(--text)}
+.content p{margin:0 0 10px}.content p:last-child{margin-bottom:0}
+.content h2,.content h3,.content h4{margin:16px 0 8px;line-height:1.35;color:var(--text)}
+.content ul{margin:8px 0 12px;padding-inline-start:22px}.content li{margin:4px 0}
+.content a{color:var(--cg-red)}
+.inline-code{font-family:var(--mono);font-size:.86em;background:var(--bg-secondary);border:1px solid #3a2424;border-radius:5px;padding:1px 5px;color:var(--text-secondary)}
+/* thinking / search states */
+.thinking{display:flex;align-items:center;gap:9px;color:var(--text-secondary);font-size:14px;padding:4px 0}
+.spinner{width:15px;height:15px;border-radius:50%;border:2px solid #3a2424;border-top-color:var(--cg-red);animation:spin var(--spin-duration,.8s) linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.think-details{font-size:12.5px;color:var(--text-tertiary);padding:4px 0 0 24px}
+.search-state b{font-size:14px;color:var(--text-secondary)}
+.source-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.source{font-size:12px;border:1px solid #3a2424;border-radius:99px;padding:4px 11px;color:var(--text-secondary);transition:all .3s}
+.source.done{background:var(--cg-red-soft);border-color:var(--cg-red);color:var(--cg-red)}
+/* action bar */
+.actions{display:flex;gap:3px;margin-top:10px;opacity:.85}
+.action{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--text-secondary)}
+.action:hover{background:var(--bg-secondary);color:var(--text)}
+.action.active{color:var(--cg-red);background:var(--cg-red-soft)}
+.action svg{width:16px;height:16px}
+/* code block */
+.codeblock{position:relative;border:1px solid #4a2828;border-radius:16px;overflow:hidden;margin:14px 0;background:linear-gradient(180deg,#1a1212 0%,var(--code-bg) 42%);box-shadow:0 0 0 1px rgba(204,0,0,.08),0 14px 36px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04)}
+.codeblock::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,#CC000088,transparent);pointer-events:none}
+.code-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px 10px 14px;background:linear-gradient(180deg,#221616,#171010);border-bottom:1px solid #3a2424}
+.code-left{display:flex;align-items:center;gap:10px;min-width:0}
+.code-traffic{display:flex;gap:6px}
+.code-traffic i{width:10px;height:10px;border-radius:50%;display:block;opacity:.9}
+.code-traffic i:nth-child(1){background:#ff5f57}
+.code-traffic i:nth-child(2){background:#febc2e}
+.code-traffic i:nth-child(3){background:#28c840}
+.code-lang{font-family:var(--mono);font-size:12px;color:#d0d0dc;background:rgba(204,0,0,.14);border:1px solid #CC000044;padding:3px 9px;border-radius:999px;text-transform:lowercase}
+.code-actions{display:flex;gap:6px;flex-wrap:wrap}
+.code-actions button{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#cfcfd8;padding:6px 10px;border-radius:9px;border:1px solid #3a2424;background:transparent;transition:background .15s,border-color .15s,color .15s}
+.code-actions button:hover{background:rgba(204,0,0,.12);border-color:#CC000066;color:#fff}
+.code-actions svg{width:13px;height:13px}
+.codeblock pre{padding:16px 18px 18px;overflow:auto;max-height:min(60vh,520px);font-family:var(--mono);font-size:13.2px;line-height:1.7;color:#e6e6ef;background:transparent;scrollbar-width:thin;scrollbar-color:#4a3030 transparent}
+.codeblock pre.wrap{white-space:pre-wrap;word-break:break-word}
+.codeblock pre::-webkit-scrollbar{height:8px;width:8px}
+.codeblock pre::-webkit-scrollbar-thumb{background:#4a3030;border-radius:8px}
+.code .kw{color:#ff7a93}.code .str{color:#a8e07f}.code .comment{color:#6b6b7d;font-style:italic}.code .fn{color:#82aaff}.code .num{color:#f7b56b}.code .op{color:#ff9b6a}
+/* Composer */
+.composer-wrap{flex:none;padding:8px 20px calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:center}
+.composer{width:100%;max-width:768px;background:var(--composer-bg);border:1px solid #3a2424;border-radius:28px;box-shadow:var(--shadow);padding:8px 8px 8px 6px;position:relative;transition:border-color .15s}
+.composer:focus-within{border-color:#CC000066}
+.composer-row{display:flex;align-items:flex-end;gap:4px}
+.composer textarea{flex:1;border:0;outline:0;background:none;resize:none;max-height:220px;padding:9px 8px;font-size:15.5px;line-height:1.5;color:var(--text)}
+.composer textarea::placeholder{color:var(--text-tertiary)}
+.round-btn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--text);flex:none;transition:background .15s}
+.round-btn:hover{background:var(--bg-secondary)}
+.round-btn svg{width:20px;height:20px}
+.send-btn{background:var(--cg-red);color:#fff}
+.send-btn:hover:not(:disabled){background:var(--cg-red-dark)}
+.send-btn:disabled{background:var(--text-tertiary);opacity:.45;cursor:not-allowed}
+.send-btn svg{width:17px;height:17px}
+.mic-btn.listening{background:var(--cg-red-soft);color:var(--cg-red);animation:pulse var(--pulse-duration,1.4s) infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 7px rgba(204,0,0,.14)}}
+.composer-hint{text-align:center;font-size:11px;color:var(--text-tertiary);padding-top:9px;user-select:none}
+/* chips (files / mode) */
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 8px 6px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:var(--bg-secondary);border:1px solid #3a2424;border-radius:99px;padding:4px 11px;color:var(--text-secondary)}
+.mode-chip{color:var(--cg-red);background:var(--cg-red-soft);border-color:transparent;font-weight:600}
+/* overlays */
+.backdrop{position:fixed;inset:0;background:var(--backdrop);opacity:0;pointer-events:none;transition:opacity .2s;z-index:60}
+.backdrop.open{opacity:1;pointer-events:auto}
+/* settings panel */
+.settings{position:fixed;top:0;bottom:0;inset-inline-end:0;width:min(440px,100vw);background:var(--surface);z-index:70;transform:translateX(105%);transition:transform .28s ease;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+[dir="rtl"] .settings{transform:translateX(-105%)}
+.settings.open{transform:translateX(0)}
+.settings-head{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid #3a2424;flex:none}
+.settings-head h2{font-size:16.5px;flex:1;color:var(--text)}
+.settings-body{flex:1;overflow-y:auto}
+.set-nav{display:flex;gap:6px;overflow-x:auto;padding:12px 16px;flex:none;border-bottom:1px solid #3a2424;scrollbar-width:none}
+.set-nav button{flex:none;display:flex;align-items:center;gap:6px;font-size:12.5px;padding:6px 12px;border-radius:99px;border:1px solid #3a2424;color:var(--text-secondary)}
+.set-nav button svg{width:13px;height:13px}
+.set-nav button.active{background:var(--cg-red);border-color:var(--cg-red);color:#fff}
+.set-sec{display:none;padding:18px 20px 30px}
+.set-sec.active{display:block}
+.set-sec>p{font-size:12.5px;color:var(--text-tertiary);margin:4px 0 16px}
+.set-sec h3{font-size:17px;color:var(--text)}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0;border-top:1px solid #3a2424}.set-label{min-width:0;flex:1}.set-row .setting-static{flex:0 0 auto}.range-control{display:flex;align-items:center;gap:10px;flex:none}.range-control output{font-size:12px;color:var(--text-secondary);min-width:24px;text-align:end}
+.set-row strong{font-size:13.5px;display:block;color:var(--text)}
+.set-label span{font-size:12px;color:var(--text-tertiary);display:block;margin-top:2px;max-width:260px;line-height:1.5}
+/* toggle */
+.toggle{position:relative;width:42px;height:24px;flex:none;display:inline-block}
+.toggle input{position:absolute;opacity:0;inset:0;cursor:pointer;z-index:2}
+.toggle i{position:absolute;inset:0;border-radius:99px;background:var(--text-tertiary);opacity:.45;transition:.2s}
+.toggle i::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.2s}
+.toggle input:checked+i{background:var(--cg-red);opacity:1}
+.toggle input:checked+i::after{transform:translateX(18px)}
+[dir="rtl"] .toggle input:checked+i::after{transform:translateX(-18px)}
+.select{background:var(--bg-secondary);border:1px solid #3a2424;border-radius:9px;padding:7px 10px;font-size:13px;max-width:190px;color:var(--text)}
+.text-input{background:var(--bg-secondary);border:1px solid #3a2424;border-radius:9px;padding:8px 11px;font-size:13px;min-width:200px;color:var(--text)}
+
+textarea.text-input{resize:vertical;min-width:min(300px,55vw)}
+.set-row-custom{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.set-row-custom .set-label{width:100%;flex:none}
+.set-row-custom .set-label span{max-width:none}
+.set-row-custom textarea.custom-instructions{display:block;width:100%;max-width:100%;min-width:0;min-height:150px;box-sizing:border-box;line-height:1.65;padding:13px 14px;border-radius:12px;background:var(--bg-secondary);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;outline:none;transition:border-color .18s,box-shadow .18s}
+.set-row-custom textarea.custom-instructions:focus{border-color:var(--cg-red);box-shadow:0 0 0 3px color-mix(in srgb,var(--cg-red) 16%,transparent)}
+.clear-warning{padding:18px 20px 20px}
+.clear-warning .warning-mark{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;color:#ff6b5f;background:rgba(220,45,35,.13);border:1px solid rgba(220,45,35,.35);margin-bottom:13px}
+.clear-warning .warning-mark svg{width:25px;height:25px}
+.clear-warning h3{font-size:17px;color:var(--text);margin:0 0 9px}
+.clear-warning p{font-size:13px;line-height:1.7;color:var(--text-secondary);margin:0 0 12px}
+.clear-warning ul{margin:0 0 18px;padding-inline-start:20px;color:var(--text-secondary);font-size:12.5px;line-height:1.9}
+.clear-warning .warning-note{padding:10px 12px;border-radius:10px;background:rgba(220,45,35,.09);border:1px solid rgba(220,45,35,.24);color:var(--text);font-size:12px;line-height:1.6;margin-bottom:18px}
+.clear-warning .warning-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.clear-warning .warning-actions button{min-height:42px;padding:9px 15px;border-radius:10px;font-size:13px}
+.clear-warning .cancel-clear{border:1px solid var(--border);background:var(--bg-secondary);color:var(--text)}
+.clear-warning .confirm-clear{border:1px solid #b42318;background:#b42318;color:#fff;font-weight:650}
+.clear-warning .confirm-clear:hover{background:#921d15}
+@media(max-width:560px){.set-sec{padding-inline:15px}.set-row-custom textarea.custom-instructions{min-height:170px;font-size:14px}.clear-warning{padding:16px}.clear-warning .warning-actions{flex-direction:column-reverse}.clear-warning .warning-actions button{width:100%}}
+
+input[type=color].text-input{min-width:52px;width:52px;height:34px;padding:3px;cursor:pointer}
+input[type=range]{accent-color:var(--cg-red);width:170px}
+.btn{border:1px solid #3a2424;background:var(--surface);border-radius:9px;padding:8px 14px;font-size:13px;color:var(--text)}
+.btn:hover{background:var(--bg-secondary)}
+.btn.danger{color:var(--cg-red);border-color:var(--cg-red)}
+/* modals */
+.modal{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-bg{position:absolute;inset:0;background:var(--backdrop)}
+.dialog{position:relative;background:var(--surface);border:1px solid #3a2424;border-radius:16px;box-shadow:var(--shadow);width:min(480px,100%);max-height:88dvh;display:flex;flex-direction:column;overflow:hidden}
+.dialog-head{display:flex;align-items:center;padding:15px 18px;border-bottom:1px solid #3a2424}
+.dialog-head h3{font-size:15.5px;flex:1;color:var(--text)}
+.dialog-body{padding:16px 18px;overflow-y:auto;font-size:13.5px;color:var(--text-secondary)}
+.dialog.wide{width:min(860px,100%)}
+.run-frame{width:100%;height:340px;border:0;background:#161616;border-radius:10px}
+.play-tabs{display:flex;gap:4px;padding:10px 18px 0}
+.play-tabs button{font-size:12.5px;padding:6px 13px;border-radius:8px;color:var(--text-secondary)}
+.play-tabs button.active{background:var(--bg-secondary);color:var(--text);font-weight:600}
+.console{font-family:var(--mono);font-size:12px;background:var(--code-bg);color:#c9e79a;border-radius:10px;padding:12px 14px;height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+.console .err{color:#ff8a8a}
+.search-input{width:100%;background:var(--bg-secondary);border:1px solid #3a2424;border-radius:10px;padding:10px 14px;font-size:14px;outline:0;color:var(--text)}
+.search-results{margin-top:10px;display:flex;flex-direction:column;gap:2px}
+.search-results button{display:flex;gap:9px;align-items:center;text-align:start;padding:9px 11px;border-radius:8px;font-size:13px;width:100%;color:var(--text)}
+.search-results button:hover{background:var(--bg-secondary)}
+/* toast */
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:120;background:var(--surface);color:var(--text);border:1px solid #3a2424;box-shadow:var(--shadow);padding:9px 16px;border-radius:99px;font-size:12.5px;animation:fadein .2s ease;max-width:92vw;text-align:center}
+/* responsive */
+@media (max-width:860px){
+  .sidebar{position:fixed;top:0;bottom:0;inset-inline-start:0;transform:translateX(-105%)}
+  [dir="rtl"] .sidebar{transform:translateX(105%)}
+  .sidebar.open{transform:translateX(0)}
+  .header .menu-btn{display:grid}
+  .thread-inner{padding:0 14px}
+}
+@media (prefers-reduced-motion:reduce){:root{--motion:0}}
+html[data-cg-motion="0"]{--motion:0}
+html[data-cg-compact="1"]{--compact:1}
+
+/* ===== Responsive refinement ===== */
+.header{gap:8px;padding-inline:clamp(10px,2vw,22px);min-height:60px;height:auto}
+.header-brand{gap:8px;min-width:0}
+.model-btn{padding:8px 10px;border:1px solid transparent;border-radius:11px;font-size:15px}
+.model-btn:hover{border-color:var(--border)}
+.share-btn{min-height:38px;padding:8px 13px}
+.thread-inner{width:100%;max-width:820px;padding-inline:clamp(14px,3vw,28px);gap:26px}
+.thread{overscroll-behavior:contain}
+.composer-wrap{padding-inline:clamp(12px,3vw,24px)}
+.composer{max-width:820px;border-radius:23px;padding:8px 10px}
+.round-btn{width:42px;height:42px}
+.round-btn svg{width:19px;height:19px}
+.actions{gap:6px;margin-top:12px;flex-wrap:wrap}
+.action{width:36px;height:36px;border:1px solid transparent}
+.action:hover{border-color:var(--border)}
+.menu{max-width:calc(100vw - 20px);max-height:min(65dvh,480px);overflow:auto}
+.menu-item svg{width:19px;height:19px;flex:none}
+#plus-menu .menu-item{min-height:54px}
+.avatar,.avatar svg{width:30px;height:30px;flex-basis:30px}
+.cg-logo,.cg-logo svg{width:30px;height:30px;flex-basis:30px}
+.sidebar{width:min(290px,86vw)}
+.recents{overscroll-behavior:contain}
+.search-results button,.recent-item{min-height:42px}
+.dialog{width:min(520px,100%);max-height:min(88dvh,850px)}
+.set-row{align-items:center}
+@media(min-width:1100px){
+  .thread-inner{max-width:900px}
+  .composer{max-width:900px}
+  .sidebar{width:276px}
+}
+@media(max-width:560px){
+  .header{padding-inline:9px;gap:5px;min-height:56px}
+  .header-brand{gap:5px}
+  .header-brand .cg-logo,.header-brand .cg-logo svg{width:27px;height:27px;flex-basis:27px}
+  .model-btn{font-size:14px;padding:7px 7px;gap:3px}
+  .model-btn .chev{width:13px;height:13px}
+  .share-btn{width:38px;height:38px;min-height:38px;padding:0;justify-content:center;border-radius:12px}
+  .share-btn [data-i18n]{display:none}
+  .thread-inner{padding-inline:12px;gap:20px}
+  .msg{gap:9px}
+  .msg.user .bubble{max-width:88%;font-size:15px}
+  .content{font-size:15px;line-height:1.65}
+  .composer-wrap{padding:7px 10px calc(10px + env(safe-area-inset-bottom))}
+  .composer{border-radius:21px;padding:6px}
+  .composer textarea{font-size:16px;min-width:0}
+  .round-btn{width:38px;height:38px}
+  .toast{bottom:calc(94px + env(safe-area-inset-bottom))}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+
+/* ===== v69 functional layer and mobile overlay fixes ===== */
+.sidebar{background:var(--sidebar-bg);color:var(--sidebar-text)}
+.sidebar.open{z-index:75}
+.backdrop.open{z-index:65}
+.settings{z-index:76}
+.modal{z-index:100}
+.modal-bg{z-index:0}
+.modal .dialog{z-index:1}
+.menu{z-index:95;max-height:min(72dvh,560px);overflow-y:auto;overscroll-behavior:contain}
+.sidebar{overflow:hidden}
+.sidebar-top{flex:none}
+.nav{flex:none}
+.recents{flex:1;min-height:80px;overflow-y:auto;overscroll-behavior:contain}
+.sidebar-footer{flex:none;padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--sidebar-bg)}
+.user-chip{width:100%;min-height:54px;display:flex;align-items:center;gap:10px;padding:10px 12px;text-align:start}
+.user-chip div{display:flex;flex-direction:column;gap:2px}
+.settings.open{pointer-events:auto}
+.settings-body{min-height:0}
+.modal.open{pointer-events:auto}
+.dialog{width:min(560px,calc(100vw - 24px));max-height:min(88dvh,760px)}
+.dialog-body{overscroll-behavior:contain}
+.search-results{max-height:55dvh;overflow-y:auto}
+@media(max-width:860px){
+  .sidebar{z-index:75}
+  .sidebar.open{box-shadow:0 0 35px rgba(0,0,0,.55)}
+  .settings{width:min(440px,100vw)}
+}
+@media(max-width:560px){
+  .modal{padding:10px}
+  .dialog{width:100%;max-height:90dvh;border-radius:15px}
+  .dialog-head{padding:13px 14px}
+  .dialog-body{padding:14px}
+  .settings{width:100vw}
+  .set-nav{padding-bottom:10px}
+  .sidebar-footer{padding-bottom:max(14px,env(safe-area-inset-bottom))}
+}
+
+
+/* ===== Stage 6: preserve original layout; translate text without mirroring UI ===== */
+.set-nav{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;overflow-y:hidden;padding:12px 16px;flex:none;scrollbar-width:none;align-content:initial;direction:ltr}
+.set-nav button{flex:0 0 auto;min-width:max-content;max-width:none;white-space:nowrap;padding:6px 12px}
+.settings-body{min-width:0;overscroll-behavior:contain}
+.set-sec{min-width:0}
+.set-row{min-width:0;display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:16px}
+.set-label{min-width:0;overflow-wrap:normal;text-align:start}
+.set-row .select,.set-row .text-input,.set-row .range-control{max-width:100%}
+.menu{inset-inline-start:auto;inset-inline-end:auto;max-width:calc(100vw - 20px)}
+#plus-menu{min-width:210px;max-width:min(270px,calc(100vw - 20px))}
+#plus-menu .menu-item{min-height:44px;padding:7px 9px;gap:8px}
+#asset-page{width:min(900px,100%);margin:0 auto;display:grid;gap:20px}
+.asset-hero{display:flex;align-items:center;gap:15px;padding:20px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,var(--cg-red-soft),transparent 75%)}
+.asset-hero-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border-radius:15px;background:var(--cg-red);color:#fff}
+.asset-hero-icon svg{width:23px;height:23px}
+.asset-hero h2{font-size:clamp(19px,3vw,24px);margin-bottom:5px;color:var(--text)}
+.asset-hero p{font-size:13px;line-height:1.65;color:var(--text-secondary)}
+.asset-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.asset-toolbar p{font-size:12px;color:var(--text-tertiary)}
+.asset-add{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 14px;border-radius:11px;background:var(--cg-red);color:#fff;font-size:13px;font-weight:650}
+.asset-add svg{width:16px;height:16px}
+#asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px}
+#asset-grid>button{min-width:0;text-align:start;padding:10px;border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden;transition:transform .15s,border-color .15s,background .15s}
+#asset-grid>button:hover{transform:translateY(-2px);border-color:var(--cg-red);background:var(--bg-secondary)}
+#asset-grid .asset-preview{height:112px;display:grid;place-items:center;overflow:hidden;border-radius:9px;background:var(--bg-secondary);color:var(--cg-red)}
+#asset-grid .asset-preview img{width:100%;height:100%;object-fit:cover}
+#asset-grid .asset-name{display:block;margin-top:10px;font-size:12px;font-weight:650;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#asset-grid .asset-meta{display:block;margin-top:4px;font-size:10.5px;color:var(--text-tertiary)}
+.asset-empty{grid-column:1/-1;padding:34px 18px;text-align:center;border:1px dashed var(--border);border-radius:15px;color:var(--text-tertiary);font-size:13px}
+.asset-empty svg{width:30px;height:30px;margin:0 auto 10px;color:var(--cg-red);opacity:.8}
+.mic-btn.listening{outline:2px solid var(--cg-red);outline-offset:2px}
+@media(max-width:560px){
+ .set-row .range-control{max-width:100%;flex-wrap:wrap}
+ .set-row .range-control input[type=range]{width:min(145px,38vw)}
+ .set-row textarea.text-input{width:100%;min-width:0}
+ #asset-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .asset-hero{padding:15px;align-items:flex-start}
+ .asset-toolbar{align-items:stretch}
+ .asset-add{width:100%}
+}
+
+
+/* ===== Stage 3: dedicated pages, support and refined search ===== */
+.support-head-btn{padding:7px 11px;border-color:#CC000066;color:var(--text);white-space:nowrap}
+.modal.page-mode{padding:0;background:var(--surface)}
+.modal.page-mode .modal-bg{background:var(--surface)}
+.modal.page-mode .dialog{width:100%;height:100dvh;max-height:100dvh;border:0;border-radius:0;box-shadow:none;background:var(--bg);display:flex}
+.modal.page-mode .dialog-head{padding:16px clamp(16px,4vw,42px);min-height:66px}
+.modal.page-mode .dialog-body{padding:clamp(18px,4vw,42px);width:min(900px,100%);margin:0 auto;flex:1}
+.search-page-intro{display:flex;align-items:flex-start;gap:14px;margin:8px 0 24px}
+.search-page-icon{width:46px;height:46px;border-radius:14px;background:var(--cg-red-soft);color:var(--cg-red);display:grid;place-items:center;flex:none}
+.search-page-intro h2{font-size:23px;letter-spacing:-.5px;color:var(--text);margin-bottom:5px}
+.search-page-intro p{font-size:13px;line-height:1.6;color:var(--text-tertiary)}
+.search-field-wrap{position:relative}
+.search-field-wrap .search-input{padding:15px 16px 15px 48px;border-radius:13px;font-size:15px;min-height:54px;border-color:var(--border);box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.search-field-wrap>span{position:absolute;left:16px;top:17px;color:var(--text-tertiary);pointer-events:none}
+[dir="rtl"] .search-field-wrap>span{left:auto;right:16px}
+.search-results{margin-top:16px;gap:7px;max-height:calc(100dvh - 260px)}
+.search-results button{border:1px solid var(--border);background:var(--bg-secondary);border-radius:12px;padding:13px 14px;min-height:66px;transition:border-color .15s,background .15s}
+.search-results button:hover{border-color:var(--cg-red);background:var(--surface)}
+.search-result-icon{width:34px;height:34px;border-radius:10px;background:var(--cg-red-soft);color:var(--cg-red);display:grid;place-items:center;flex:none}
+.search-empty{padding:30px 18px;text-align:center;border:1px dashed var(--border);border-radius:14px;color:var(--text-tertiary);font-size:13px}
+.search-empty svg{width:28px;height:28px;margin:0 auto 10px;opacity:.65}
+.support-page{width:min(760px,100%);margin:0 auto;display:grid;gap:22px}
+.support-hero{display:flex;align-items:center;gap:16px;padding:20px;border:1px solid var(--border);border-radius:18px;background:linear-gradient(135deg,var(--cg-red-soft),transparent 72%)}
+.support-hero-icon{width:48px;height:48px;flex:0 0 48px;display:grid;place-items:center;border-radius:15px;background:var(--cg-red);color:#fff}
+.support-hero-icon svg{width:23px;height:23px}
+.support-hero h2{font-size:clamp(19px,3vw,24px);margin-bottom:5px;color:var(--text)}
+.support-hero p{font-size:13px;line-height:1.65;color:var(--text-secondary)}
+.support-form{display:grid;gap:16px;padding:clamp(16px,3vw,24px);border:1px solid var(--border);border-radius:18px;background:var(--surface)}
+.support-form label{display:grid;gap:8px;font-size:13px;color:var(--text-secondary);font-weight:650}
+.support-form select,.support-form textarea,.support-form input{width:100%;min-height:46px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:12px 14px;color:var(--text);outline:none;font-size:14px}
+.support-form textarea{min-height:180px;resize:vertical;line-height:1.7}
+.support-form select:focus,.support-form textarea:focus,.support-form input:focus{border-color:var(--cg-red);box-shadow:0 0 0 3px var(--cg-red-soft)}
+.support-note{display:flex;gap:10px;align-items:flex-start;padding:13px 15px;border:1px solid var(--border);border-radius:12px;color:var(--text-tertiary);font-size:12px;line-height:1.65}
+.support-note svg{width:17px;height:17px;flex:none;color:var(--cg-red);margin-top:1px}
+.support-submit{width:100%;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:9px;background:var(--cg-red);color:#fff;border:0;padding:12px 18px;border-radius:12px;font-weight:700;font-size:14px;transition:filter .15s,transform .15s}
+.support-submit:hover{filter:brightness(1.08)}.support-submit:active{transform:scale(.99)}
+.support-submit svg{width:17px!important;height:17px!important;display:block;flex:0 0 17px}
+@media(max-width:560px){.support-hero{padding:16px;align-items:flex-start}.support-form textarea{min-height:150px}}
+.dialog-body #asset-grid>button{background:var(--bg-secondary);transition:transform .15s,border-color .15s}.dialog-body #asset-grid>button:hover{transform:translateY(-2px);border-color:var(--cg-red)}
+.about-copy{line-height:1.75;color:var(--text-secondary);font-size:13px;max-width:720px}.about-layout{padding:12px 0 28px;width:100%}
+.about-card{padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--bg-secondary);margin:12px 0}
+.about-card h4{font-size:14px;color:var(--text);margin-bottom:7px}
+.about-card p{font-size:13px;line-height:1.75;color:var(--text-secondary)}
+.about-card.warning{border-inline-start:3px solid var(--cg-red);background:var(--cg-red-soft)}
+.about-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.about-meta span{padding:6px 10px;border:1px solid var(--border);border-radius:99px;font-size:11px;color:var(--text-tertiary)}
+@media(max-width:560px){.modal.page-mode .dialog-head{padding:12px 14px}.modal.page-mode .dialog-body{padding:20px 14px}.search-page-intro h2{font-size:20px}}
+
+
+/* ===== Sidebar interaction repair: one coherent stacking order ===== */
+.nav-item,.user-chip{color:var(--sidebar-text);opacity:1}
+.nav-item{min-height:42px;justify-content:flex-start;touch-action:manipulation}
+.nav-item>span:first-child{display:inline-flex;align-items:center;justify-content:center;width:19px;min-width:19px;height:19px;flex:0 0 19px}
+.nav-item>span:nth-child(2){flex:1 1 auto;min-width:0;font-size:14px;line-height:1.35;white-space:normal}
+.nav-item>span:first-child svg,.user-chip>span svg{display:block;width:18px;height:18px;visibility:visible;opacity:1}
+.user-chip{min-height:54px;cursor:pointer;touch-action:manipulation}
+.user-chip>div{display:flex;flex:1 1 auto;min-width:0;flex-direction:column;gap:2px}
+.user-chip b{display:block;font-size:14px;line-height:1.4;color:var(--sidebar-text)}
+.user-chip small{display:block;font-size:11px;line-height:1.35;color:var(--sidebar-dim)}
+.sidebar-footer{display:flex;flex-direction:column;gap:2px;flex:none;padding-bottom:max(10px,env(safe-area-inset-bottom));background:var(--sidebar-bg)}
+.sidebar-support-btn{color:var(--sidebar-text)}
+.sidebar-support-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;min-width:18px;height:18px;flex:0 0 18px}
+.sidebar-support-icon svg{display:block;width:18px;height:18px;stroke:currentColor;fill:none}
+#settings{visibility:visible;pointer-events:none}
+#settings.open{visibility:visible;pointer-events:auto;z-index:90;transform:translateX(0)}
+/* The mobile sidebar must sit ABOVE its backdrop; the settings panel sits above both. */
+.backdrop{z-index:60}
+.backdrop.open{z-index:60}
+.sidebar{z-index:40}
+.sidebar.open{z-index:75}
+.settings{z-index:70}
+.settings.open{z-index:90}
+.modal{z-index:100}
+.menu{z-index:95}
+#open-settings,#sidebar-support{position:relative;pointer-events:auto;touch-action:manipulation}
+@media(max-width:860px){
+  .sidebar{z-index:40}
+  .sidebar.open{z-index:75;box-shadow:0 0 35px rgba(0,0,0,.55)}
+}
+@media(max-width:560px){
+  .nav-item{min-height:44px;padding:10px 12px}
+  .nav-item>span:nth-child(2){font-size:15px}
+}
+.content,.msg.user .bubble,.composer textarea{font-size:var(--message-font-size,15.5px)}
+</style>
+<base target="_blank">
+</head>
+<body>
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+    <div class="sidebar-top">
+      <button class="icon-btn" id="close-side" aria-label="Close sidebar"></button>
+      <div class="wordmark"><span class="cg-logo" id="brand-logo"></span>WormGPT</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item primary" id="nav-new" type="button"><span data-ic="plus"></span><span data-i18n="newChat"></span></button>
+      <button class="nav-item" id="nav-search" type="button"><span data-ic="search"></span><span data-i18n="searchChats"></span></button>
+      <button class="nav-item" id="nav-images" type="button"><span data-ic="image"></span><span data-i18n="images"></span></button>
+      <button class="nav-item" id="nav-library" type="button"><span data-ic="folder"></span><span data-i18n="library"></span></button>
+      <button class="nav-item" id="nav-projects" type="button"><span data-ic="folder"></span><span data-i18n="projects"></span></button>
+    </nav>
+    <div class="recents" id="recents"></div>
+    <div class="sidebar-footer">
+      <button class="user-chip sidebar-support-btn" id="sidebar-support" type="button">
+        <span class="sidebar-support-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"/><path d="M9.5 9a2.5 2.5 0 1 1 4.5 1.5c-1.1 1-2 1.4-2 2.8"/><path d="M12 16.5h.01"/></svg></span>
+        <div><b id="sidebar-support-label">Support</b><small id="sidebar-support-sub">Contact the WormGPT team</small></div>
+      </button>
+      <button class="user-chip" id="open-settings" type="button"><span data-ic="settings" style="width:18px;height:18px;color:var(--sidebar-dim)"></span><div><b data-i18n="settings"></b><small data-i18n="settingsSub"></small></div></button>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <header class="header">
+      <button class="icon-btn menu-btn" id="menu-btn" aria-label="Open sidebar"></button>
+      <div class="header-brand"><span class="cg-logo" id="header-brand-logo"></span>
+        <button class="model-btn" id="model-btn" aria-label="Choose response quality"><span id="model-name">WormGPT</span><span data-ic="chevron" class="chev"></span></button>
+      </div>
+      <div class="header-spacer"></div>
+      <button class="share-btn" id="share-btn" title="Export this conversation as a TXT file" aria-label="Export conversation"><span data-ic="share"></span><span data-i18n="share"></span></button>
+    </header>
+
+    <div class="thread" id="thread"><div class="thread-inner" id="thread-inner"></div></div>
+
+    <div class="composer-wrap">
+      <div style="width:100%;max-width:768px">
+        <div class="composer" id="composer">
+          <div class="chips" id="chips" hidden></div>
+          <div class="composer-row">
+            <button class="round-btn" id="plus-btn" aria-label="Add tools"></button>
+            <textarea id="prompt" rows="1" placeholder="Message WormGPT"></textarea>
+            <button class="round-btn" id="mic-btn" aria-label="Start dictation"></button>
+            <button class="round-btn send-btn" id="send-btn" disabled aria-label="Send"></button>
+          </div>
+        </div>
+        <div class="composer-hint" data-i18n="disclaimer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Settings panel -->
+<aside class="settings" id="settings" aria-label="Settings">
+  <div class="settings-head">
+    <button class="icon-btn" id="settings-back" style="color:var(--text)"></button>
+    <h2 data-i18n="settings"></h2>
+  </div>
+  <div class="set-nav" id="set-nav"></div>
+  <div class="settings-body" id="set-body"></div>
+</aside>
+
+<!-- Plus menu -->
+<div class="menu" id="plus-menu" style="bottom:auto"></div>
+<!-- Model menu -->
+<div class="menu" id="model-menu"></div>
+
+<!-- Generic modal root -->
+<div class="modal" id="modal"><div class="modal-bg" data-close></div><div class="dialog" id="modal-dialog"></div></div>
+<input type="file" id="file-input" hidden multiple>
+
+<script>
+"use strict";
+/* ================= Config ================= */
+// Deploy with a same-origin backend exposing POST /api/chat. No API key is stored in this HTML.
+const CONFIG = Object.assign({ CHAT_ENDPOINT:"/api/chat" }, window.WormGPT_CONFIG || {});
+/* ================= Icons (from reference) ================= */
+const svg=(p)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const I={
+ menu:svg('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+ close:svg('<path d="m6 6 12 12M18 6 6 18"/>'),
+ plus:svg('<path d="M12 5v14M5 12h14"/>'),
+ search:svg('<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>'),
+ image:svg('<rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="9" cy="9" r="1.4"/><path d="m4 16 5-5 4 4 2-2 5 5"/>'),
+ folder:svg('<path d="M3 7.5h7l2 2h9v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7.5V6a2 2 0 0 1 2-2h4l2 2"/>'),
+ clock:svg('<circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/>'),
+ plugin:svg('<path d="M9 4a3 3 0 0 0 0 5H5a3 3 0 0 0 0 6h4v4a3 3 0 0 0 6 0v-4h4a3 3 0 0 0 0-6h-4a3 3 0 1 0-6-5z"/>'),
+ monitor:svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),
+ settings:svg('<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/><path d="m19 13.5 1.2.7-1.5 2.6-1.3-.7a8 8 0 0 1-2.1 1.2V19h-3v-1.7a8 8 0 0 1-2.1-1.2l-1.3.7-1.5-2.6 1.2-.7a7.6 7.6 0 0 1 0-2.4l-1.2-.7L9 7.8l1.3.7A8 8 0 0 1 12.4 7V5.5h3V7a8 8 0 0 1 2.1 1.2l1.3-.7 1.5 2.6-1.2.7a7.6 7.6 0 0 1-.1 2.7z"/>'),
+ chat:svg('<path d="M5 5h14v10H9l-4 4z"/><path d="M8 9h8M8 12h5"/>'),
+ mic:svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'),
+ send:svg('<path d="M12 19V5M6 11l6-6 6 6"/>'),
+ globe:svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>'),
+ brain:svg('<path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-2 5 3 3 0 0 0 3 5h2V4zM15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 2 5 3 3 0 0 1-3 5h-2V4z"/><path d="M9 8h2M15 8h-2M9 13h2M15 13h-2M12 5v14"/>'),
+ link:svg('<path d="M9.5 14.5 14.5 9.5M7 17l-2 2a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0M17 7l2-2a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0"/>'),
+ agent:svg('<circle cx="12" cy="12" r="8"/><path d="M8 12h8M12 8v8"/>'),
+ paperclip:svg('<path d="M8 12.5 14.5 6a3 3 0 0 1 4.2 4.2l-7.6 7.6a5 5 0 0 1-7.1-7.1l7.2-7.2a3.3 3.3 0 0 1 4.7 4.7L9.6 14.5a1.6 1.6 0 0 1-2.3-2.3l5.5-5.5"/>'),
+ copy:svg('<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>'),
+ play:svg('<path d="m9 6 9 6-9 6z"/>'),
+ like:svg('<path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1zM7 20h9a2 2 0 0 0 2-2l1-6a2 2 0 0 0-2-2h-4l1-4a2 2 0 0 0-4-1l-3 6z"/>'),
+ dislike:svg('<path d="M7 13V4H4a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1zM7 4h9a2 2 0 0 1 2 2l1 6a2 2 0 0 1-2 2h-4l1 4a2 2 0 0 1-4 1l-3-6z"/>'),
+ share:svg('<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.6M8.2 13.2l7.6 4.6"/>'),
+ refresh:svg('<path d="M20 11a8 8 0 0 0-14-5L4 8"/><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2"/><path d="M20 20v-4h-4"/>'),
+ chevron:svg('<path d="m6 9 6 6 6-6"/>'),
+ expand:svg('<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>'),
+ user:svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5"/>'),
+ bolt:svg('<path d="m13 2-8 12h6l-1 8 8-12h-6z"/>'),
+ info:svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
+ upload:svg('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/>'),
+ palette:svg('<path d="M12 4a8 8 0 0 0 0 16h1.3a1.7 1.7 0 0 0 0-3.4H12a1.8 1.8 0 0 1 0-3.6h4.8A3.2 3.2 0 0 0 20 9.8 7.9 7.9 0 0 0 12 4z"/><circle cx="7.5" cy="9" r=".7"/><circle cx="10" cy="6.8" r=".7"/><circle cx="14" cy="6.8" r=".7"/>'),
+ bell:svg('<path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8z"/><path d="M10 21h4"/>'),
+ shield:svg('<path d="M12 3 19 6v5c0 4.6-2.8 8.2-7 10-4.2-1.8-7-5.4-7-10V6z"/><path d="m9 12 2 2 4-4"/>'),
+ database:svg('<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>')
+};
+const LOGO='M22.282 9.821a6 6 0 0 0-.516-4.91 6.05 6.05 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a6 6 0 0 0-3.998 2.9 6.05 6.05 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.05 6.05 0 0 0 6.515 2.9A6 6 0 0 0 13.26 24a6.06 6.06 0 0 0 5.772-4.206 6 6 0 0 0 3.997-2.9 6.06 6.06 0 0 0-.747-7.073M13.26 22.43a4.48 4.48 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.8.8 0 0 0 .392-.681v-6.737l2.02 1.168a.07.07 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494M3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.77.77 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646M2.34 7.896a4.5 4.5 0 0 1 2.366-1.973V11.6a.77.77 0 0 0 .388.677l5.815 3.354-2.02 1.168a.08.08 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855-5.833-3.387L15.119 7.2a.08.08 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667m2.01-3.023-.141-.085-4.774-2.782a.78.78 0 0 0-.785 0L9.409 9.23V6.897a.07.07 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.8.8 0 0 0-.393.681zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z';
+const logoSVG=`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 24 24" aria-hidden="true"><path fill="#E60000" d="${LOGO}"/></svg>`;
+/* ================= I18N ================= */
+const T={
+ en:{newChat:"New chat",searchChats:"Search chats",images:"Images",library:"Library",projects:"Projects",scheduled:"Scheduled",plugins:"Plugins",remote:"Remote",settings:"Settings",settingsSub:"WormGPT preferences",share:"Share",placeholder:"Message WormGPT",disclaimer:"WormGPT can make mistakes. Check important info.",recents:"Recents",listening:"Listening…",copied:"Copied",noMatches:"No matches.",searchTitle:"Search chats",codePreview:"Code preview",preview:"Preview",console:"Console",close:"Close",regen:"Regenerating…",thinking:"Thinking",searching:"Searching the web…",agentWorking:"Agent is working",generating:"Generating response…",preparing:"Preparing response…",voiceOff:"Voice input is disabled in Settings",voiceNA:"Speech recognition is not supported in this browser",micStop:"Microphone input stopped",backendDown:"AI backend is not connected.",uploadFiles:"Upload files",uploadSub:"Attach images or documents",addImage:"Add image",addImageSub:"Choose an image from your device",searchWeb:"Search the web",searchWebSub:"Search mode with live sources",thinkMode:"Thinking mode",thinkSub:"Reasoning-style response flow",agentMode:"Agent mode",agentSub:"Multi-step local agent flow",connect:"Connect platforms",connectSub:"Manage external platform connections",clearAsk:"Clear all locally saved WormGPT chats?"},
+ ar:{newChat:"محادثة جديدة",searchChats:"البحث في المحادثات",images:"الصور",library:"المكتبة",projects:"المشاريع",scheduled:"مجدولة",plugins:"الإضافات",remote:"عن بُعد",settings:"الإعدادات",settingsSub:"تفضيلات WormGPT",share:"مشاركة",placeholder:"راسل WormGPT",disclaimer:"قد يرتكب WormGPT أخطاء. تحقق من المعلومات المهمة.",recents:"الأحدث",listening:"يستمع…",copied:"تم النسخ",noMatches:"لا نتائج.",searchTitle:"البحث في المحادثات",codePreview:"معاينة الكود",preview:"معاينة",console:"وحدة التحكم",close:"إغلاق",regen:"إعادة التوليد…",thinking:"يفكر",searching:"يبحث في الويب…",agentWorking:"الوكيل يعمل",generating:"يولّد الرد…",preparing:"يجهّز الرد…",voiceOff:"إدخال الصوت معطل في الإعدادات",voiceNA:"التعرف على الكلام غير مدعوم في هذا المتصفح",micStop:"توقف إدخال الميكروفون",backendDown:"خادم الذكاء الاصطناعي غير متصل.",uploadFiles:"رفع ملفات",uploadSub:"إرفاق صور أو مستندات",addImage:"إضافة صورة",addImageSub:"اختر صورة من جهازك",searchWeb:"البحث في الويب",searchWebSub:"وضع بحث مع مصادر مباشرة",thinkMode:"وضع التفكير",thinkSub:"رد بأسلوب الاستدلال",agentMode:"وضع الوكيل",agentSub:"تدفق وكيل محلي متعدد الخطوات",connect:"ربط المنصات",connectSub:"إدارة الاتصالات الخارجية",clearAsk:"مسح جميع محادثات WormGPT المحفوظة محليًا؟"},
+ fr:{newChat:"Nouvelle conversation",searchChats:"Rechercher",images:"Images",library:"Bibliothèque",projects:"Projets",scheduled:"Planifiées",plugins:"Extensions",remote:"À distance",settings:"Paramètres",settingsSub:"Préférences WormGPT",share:"Partager",placeholder:"Message WormGPT",disclaimer:"WormGPT peut faire des erreurs. Vérifiez les infos importantes.",recents:"Récents",listening:"Écoute…",copied:"Copié",noMatches:"Aucun résultat.",searchTitle:"Rechercher",codePreview:"Aperçu du code",preview:"Aperçu",console:"Console",close:"Fermer",regen:"Régénération…",thinking:"Réflexion",searching:"Recherche sur le web…",agentWorking:"L'agent travaille",generating:"Génération…",preparing:"Préparation…",voiceOff:"Saisie vocale désactivée",voiceNA:"Reconnaissance vocale non prise en charge",micStop:"Microphone arrêté",backendDown:"Backend indisponible. Réponse locale.",uploadFiles:"Téléverser",uploadSub:"Joindre images ou documents",addImage:"Ajouter une image",addImageSub:"Choisir une image",searchWeb:"Recherche web",searchWebSub:"Mode recherche avec sources",thinkMode:"Mode réflexion",thinkSub:"Réponse en mode raisonnement",agentMode:"Mode agent",agentSub:"Flux agent local",connect:"Connecter",connectSub:"Gérer les plateformes",clearAsk:"Effacer toutes les conversations locales ?"},
+ ru:{newChat:"Новый чат",searchChats:"Поиск чатов",images:"Изображения",library:"Библиотека",projects:"Проекты",scheduled:"По расписанию",plugins:"Плагины",remote:"Удалённо",settings:"Настройки",settingsSub:"Настройки WormGPT",share:"Поделиться",placeholder:"Сообщение WormGPT",disclaimer:"WormGPT может ошибаться. Проверяйте важную информацию.",recents:"Недавние",listening:"Слушаю…",copied:"Скопировано",noMatches:"Нет совпадений.",searchTitle:"Поиск чатов",codePreview:"Предпросмотр кода",preview:"Предпросмотр",console:"Консоль",close:"Закрыть",regen:"Повторная генерация…",thinking:"Думает",searching:"Поиск в интернете…",agentWorking:"Агент работает",generating:"Генерация ответа…",preparing:"Подготовка ответа…",voiceOff:"Голосовой ввод отключён",voiceNA:"Распознавание речи не поддерживается",micStop:"Микрофон остановлен",backendDown:"Сервер недоступен. Локальный ответ.",uploadFiles:"Загрузить файлы",uploadSub:"Прикрепить изображения или документы",addImage:"Добавить изображение",addImageSub:"Выбрать изображение",searchWeb:"Поиск в интернете",searchWebSub:"Режим поиска с источниками",thinkMode:"Режим размышления",thinkSub:"Ответ с рассуждением",agentMode:"Режим агента",agentSub:"Локальный агент",connect:"Подключение платформ",connectSub:"Внешние платформы",clearAsk:"Удалить все локальные чаты?"}
+};
+const langName={ar:"العربية",en:"English",fr:"Français",es:"Español",ru:"Русский"};
+T.es={newChat:"Nuevo chat",searchChats:"Buscar chats",images:"Imágenes",library:"Biblioteca",projects:"Proyectos",scheduled:"Programados",plugins:"Complementos",remote:"Remoto",settings:"Ajustes",settingsSub:"Preferencias de WormGPT",share:"Compartir",placeholder:"Escribe a WormGPT",disclaimer:"WormGPT puede cometer errores. Verifica la información importante.",recents:"Recientes",listening:"Escuchando…",copied:"Copiado",noMatches:"No hay coincidencias.",searchTitle:"Buscar chats",codePreview:"Vista previa del código",preview:"Vista previa",console:"Consola",close:"Cerrar",regen:"Regenerando…",thinking:"Pensando",searching:"Buscando en la web…",agentWorking:"El agente está trabajando",generating:"Generando respuesta…",preparing:"Preparando respuesta…",voiceOff:"La entrada de voz está desactivada en Ajustes",voiceNA:"El reconocimiento de voz no es compatible con este navegador",micStop:"Entrada del micrófono detenida",backendDown:"El servidor de IA no está conectado.",uploadFiles:"Subir archivos",uploadSub:"Adjuntar imágenes o documentos",addImage:"Añadir imagen",addImageSub:"Elige una imagen del dispositivo",searchWeb:"Buscar en la web",searchWebSub:"Búsqueda con fuentes actuales",thinkMode:"Modo de razonamiento",thinkSub:"Flujo de respuesta razonada",agentMode:"Modo agente",agentSub:"Flujo de agente local de varios pasos",connect:"Conectar plataformas",connectSub:"Gestionar conexiones externas",clearAsk:"¿Borrar todos los chats guardados localmente?"};
+const t=k=>(T[(state.settings.language||"en").split("-")[0]]||T.en)[k]||T.en[k]||k;
+/* ================= State ================= */
+const DEFAULT={theme:"dark",accent:"#CC0000",language:"en",voiceInput:true,voiceLanguage:"en-US",fontSize:"16",compact:false,enterSend:true,spellcheck:true,timestamps:true,markdown:true,codeWrap:false,showThinking:true,autoScroll:true,reducedMotion:false,privacyMode:false,saveHistory:true,analytics:false,model:"WormGPT High",temperature:"0.7",systemPrompt:"",streaming:true,codeExecution:true};
+const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){console.warn("WormGPT local storage limit:",e);return false}}};
+const state={settings:Object.assign({},DEFAULT,store.get("wormgpt-settings",{})),messages:[],mode:"normal",files:[],isSending:false,isListening:false,chats:(Object.assign({},DEFAULT,store.get("wormgpt-settings",{})).privacyMode||Object.assign({},DEFAULT,store.get("wormgpt-settings",{})).saveHistory===false)?[]:store.get("wormgpt-sessions",[]),activeChatId:store.get("wormgpt-active-chat",null)};
+/* ================= Helpers ================= */
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const uid=()=>"m-"+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+function toast(msg){const n=document.createElement("div");n.className="toast";n.textContent=msg;document.body.appendChild(n);setTimeout(()=>n.remove(),1900)}
+function scrollBottom(){if(state.settings.autoScroll)setTimeout(()=>{const el=$("#thread");el.scrollTop=el.scrollHeight},30)}
+/* ================= Static icons ================= */
+$("#brand-logo").innerHTML=logoSVG;$("#header-brand-logo").innerHTML=logoSVG;
+$("#close-side").innerHTML=I.close;$("#settings-back").innerHTML=I.close;
+$("#menu-btn").innerHTML=I.menu;$("#plus-btn").innerHTML=I.plus;
+$("#mic-btn").innerHTML=I.mic;$("#send-btn").innerHTML=I.send;
+$$("[data-ic]").forEach(el=>el.innerHTML=I[el.dataset.ic]||"");
+const SIDEBAR_LABELS={newChat:"New chat",searchChats:"Search chats",images:"Images",library:"Library",projects:"Projects",settings:"Settings",settingsSub:"WormGPT preferences"};
+$$(".nav-item [data-i18n], #open-settings [data-i18n]").forEach(el=>{
+  const key=el.dataset.i18n;
+  if(!el.textContent.trim() && SIDEBAR_LABELS[key]) el.textContent=SIDEBAR_LABELS[key];
+});
+/* ================= Apply settings ================= */
+function applySettings(full){
+  const s=state.settings,root=document.documentElement;
+  if(!["ar","en","fr","es","ru"].includes((s.language||"en").split("-")[0]))s.language="en";
+  if(s.privacyMode)s.saveHistory=false;
+  delete s.voiceLanguage;delete s.notifications;delete s.desktopNotifications;
+  const dark=s.theme==="dark"||(s.theme==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);
+  root.dataset.cgTheme=dark?"dark":"light";
+  root.style.setProperty("--cg-red",s.accent||DEFAULT.accent);
+  root.style.fontSize=s.fontSize+"px";
+  root.style.setProperty("--message-font-size",(Number(s.fontSize)||16)-.5+"px");
+  root.style.setProperty("--motion",s.reducedMotion?"0":"1");
+  root.style.setProperty("--fade-duration",s.reducedMotion?".01ms":".25s");
+  root.style.setProperty("--spin-duration",s.reducedMotion?".01ms":".8s");
+  root.style.setProperty("--pulse-duration",s.reducedMotion?".01ms":"1.4s");
+  root.style.setProperty("--compact",s.compact?"1":"0");
+  root.style.setProperty("--thread-gap",s.compact?"16px":"24px");
+  root.style.setProperty("--thread-pad",s.compact?"12px":"20px");
+  root.dataset.cgMotion=s.reducedMotion?"0":"1";
+  root.dataset.cgCompact=s.compact?"1":"0";
+  const langBase=(s.language||"en").split("-")[0];
+  root.lang=s.language;root.dir="ltr";root.style.setProperty("--ui-direction","ltr");
+  $("#prompt").spellcheck=!!s.spellcheck;
+  $("#model-name").textContent="WormGPT";
+  $$(".codeblock pre").forEach(p=>p.classList.toggle("wrap",!!s.codeWrap));
+  if(full){renderRecents();renderMessages();localizeSupportButton();localizeSidebarSupport();$$("[data-i18n]").forEach(el=>el.textContent=t(el.dataset.i18n));$("#prompt").placeholder=t("placeholder");if(typeof renderPlusMenu==="function")renderPlusMenu();if($("#settings").classList.contains("open"))renderSettings()}
+  store.set("wormgpt-settings",s);
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>state.settings.theme==="system"&&applySettings());
+/* ================= Sidebar ================= */
+const sidebar=$("#sidebar"),backdrop=$("#backdrop");
+function openSidebar(){sidebar.classList.add("open");backdrop.classList.add("open")}
+function closeSidebar(){sidebar.classList.remove("open");if(!$("#settings").classList.contains("open"))backdrop.classList.remove("open")}
+$("#menu-btn").onclick=openSidebar;$("#close-side").onclick=closeSidebar;backdrop.onclick=closeAll;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAll()});
+function closeAll(){closeSidebar();const sp=$("#settings");sp.classList.remove("open");sp.style.pointerEvents="";sp.style.transform="";sp.style.zIndex="";sp.style.visibility="";backdrop.classList.remove("open");closeMenus();closeModal()}
+$("#nav-new").onclick=()=>{newChat();closeSidebar();$("#prompt").focus()};
+$("#nav-search").onclick=()=>{closeSidebar();openSearchModal()};
+$("#nav-images").onclick=()=>{closeSidebar();openAssetModal("images")};
+$("#nav-library").onclick=()=>{closeSidebar();openAssetModal("library")};
+$("#nav-projects").onclick=()=>{closeSidebar();openProjectsModal()};
+
+function cloneMessages(messages){return JSON.parse(JSON.stringify(messages||[]))}
+function saveActiveChat(){
+  // Never create or persist an empty placeholder session.
+  if(!state.messages.length)return;
+  if(state.settings.privacyMode||!state.settings.saveHistory)return;
+  if(!state.activeChatId)state.activeChatId=uid();
+  const first=state.messages.find(m=>m.role==="user");
+  const raw=(first?.content||"").trim();
+  const title=raw?raw.replace(/\s+/g," ").slice(0,48):"Attachment";
+  const snapshot=cloneMessages(state.messages);
+  const all=state.chats.filter(c=>c.id!==state.activeChatId);
+  all.unshift({id:state.activeChatId,title,messages:snapshot,updated:Date.now()});
+  state.chats=all.slice(0,100);
+  store.set("wormgpt-sessions",state.chats);
+  store.set("wormgpt-active-chat",state.activeChatId);
+  // Legacy key caused old and new conversations to be merged on reload. Retire it.
+  try{localStorage.removeItem("wormgpt-messages")}catch{}
+}
+function newChat(){
+  saveActiveChat();
+  state.activeChatId=uid();
+  state.messages=[];
+  if(!state.settings.privacyMode&&state.settings.saveHistory)store.set("wormgpt-active-chat",state.activeChatId);
+  clearComposer();
+  threadInner.innerHTML="";
+  state.mode="normal";
+  renderChips();
+  renderRecents();
+  closeMenus();
+}
+function openChat(id){
+  // Save only the conversation currently on screen, then load a detached copy.
+  saveActiveChat();
+  const chat=state.chats.find(c=>c.id===id);
+  if(!chat)return;
+  state.activeChatId=chat.id;
+  state.messages=cloneMessages(chat.messages);
+  if(!state.settings.privacyMode&&state.settings.saveHistory)store.set("wormgpt-active-chat",id);
+  clearComposer();
+  renderMessages();
+  renderRecents();
+  closeSidebar();
+}
+/* recents */
+function renderRecents(){
+  const r=$("#recents"),items=state.chats.slice(0,40);
+  r.innerHTML=`<div class="recents-label">${t("recents")}</div>`+(items.map(c=>`<button class="recent-item ${c.id===state.activeChatId?"active":""}" data-chat="${esc(c.id)}" title="${esc(c.title)}">${I.chat}<span>${esc(c.title||"New chat")}</span></button>`).join("")||`<div style="padding:10px 11px;font-size:12px;color:var(--sidebar-dim)">Your conversations will appear here</div>`);
+  $$("[data-chat]",r).forEach(b=>b.onclick=()=>openChat(b.dataset.chat));
+}
+/* ================= Menus (single manager) ================= */
+const plusMenu=$("#plus-menu"),modelMenu=$("#model-menu");
+const TOOLS=[
+ ["upload",I.upload,"uploadFiles","uploadSub"],["image",I.image,"addImage","addImageSub"],
+ ["search",I.globe,"searchWeb","searchWebSub"],["think",I.brain,"thinkMode","thinkSub"],
+ ["agent",I.agent,"agentMode","agentSub"]
+];
+function renderPlusMenu(){
+  plusMenu.innerHTML=TOOLS.map(x=>`<button class="menu-item" data-tool="${x[0]}">${x[1]}<span><b style="display:block;font-size:12.5px">${t(x[2])}</b><small style="color:var(--text-tertiary);font-size:10.5px">${t(x[3])}</small></span></button>`).join("");
+}
+renderPlusMenu();
+const MODELS=["WormGPT High","WormGPT Fast"];
+modelMenu.innerHTML=`<div class="menu-label">Response quality</div>`+MODELS.map(m=>`<button class="menu-item" data-model="${m}">${I.bolt}<span>${m.replace("WormGPT ","")}</span></button>`).join("");
+function positionMenus(){
+  const c=$("#composer").getBoundingClientRect();
+  const h=$("#plus-btn").getBoundingClientRect();
+  Object.assign(plusMenu.style,{
+    left:Math.max(10,h.left-10)+"px",
+    top:"auto",
+    bottom:innerHeight-c.top+10+"px"
+  });
+  const mb=$("#model-btn").getBoundingClientRect();
+  const menuLeft=Math.min(Math.max(10,mb.left),innerWidth-240);
+  Object.assign(modelMenu.style,{left:menuLeft+"px",top:mb.bottom+6+"px",bottom:"auto",minWidth:"190px"})
+}
+function closeMenus(){plusMenu.classList.remove("open");modelMenu.classList.remove("open")}
+$("#plus-btn").onclick=e=>{e.stopPropagation();positionMenus();modelMenu.classList.remove("open");plusMenu.classList.toggle("open")};
+$("#model-btn").onclick=e=>{e.stopPropagation();positionMenus();plusMenu.classList.remove("open");modelMenu.classList.toggle("open");
+  if(modelMenu.classList.contains("open"))$$("[data-model]",modelMenu).forEach(b=>b.classList.toggle("active",b.dataset.model===state.settings.model))};
+modelMenu.addEventListener("click",e=>{const b=e.target.closest("[data-model]");if(!b)return;state.settings.model=b.dataset.model;applySettings();closeMenus();toast(b.dataset.model)});
+document.addEventListener("click",e=>{if(!e.target.closest("#plus-menu,#plus-btn,#model-menu,#model-btn"))closeMenus()});
+/* plus tools */
+$("#file-input").accept=".pdf,.txt,.md,.json,.csv,.js,.ts,.html,.css,.py,.c,.cpp,image/*";
+$("#file-input").onchange=async()=>{state.files=[...$("#file-input").files];renderChips();updateSend();
+  const assets=localDB.assets;for(const f of state.files){if(assets.some(a=>a.name===f.name&&a.size===f.size))continue;if(f.size>450*1024)continue;
+    const data=await new Promise(resolve=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.readAsDataURL(f)});
+    assets.unshift({id:uid(),name:f.name,type:f.type||"application/octet-stream",size:f.size,data,created:Date.now()});
+  }localDB.assets=assets.slice(0,8);};
+plusMenu.addEventListener("click",e=>{
+  const b=e.target.closest("[data-tool]");if(!b)return;closeMenus();const tool=b.dataset.tool;
+  if(tool==="upload"||tool==="image"){$("#file-input").accept=tool==="image"?"image/*":".pdf,.txt,.md,.json,.csv,.js,.ts,.html,.css,.py,.c,.cpp,image/*";$("#file-input").click();return}
+  state.mode=state.mode===tool?"normal":tool;renderChips();
+  if(state.mode!=="normal")toast(t(tool==="search"?"searchWeb":tool==="think"?"thinkMode":"agentMode"));
+});
+function renderChips(){
+  const c=$("#chips");const parts=[];
+  if(state.mode!=="normal")parts.push(`<span class="chip mode-chip">${esc(state.mode)}</span>`);
+  state.files.forEach((f,i)=>parts.push(`<span class="chip">${I.paperclip.replace("<svg",'<svg style="width:12px;height:12px"')} ${esc(f.name)}</span>`));
+  c.innerHTML=parts.join("");c.hidden=!parts.length;
+}
+function clearComposer(){state.files=[];$("#file-input").value="";const p=$("#prompt");p.value="";p.style.height="auto";renderChips();updateSend()}
+/* ================= Composer ================= */
+const promptEl=$("#prompt"),sendBtn=$("#send-btn");
+promptEl.addEventListener("input",()=>{promptEl.style.height="auto";promptEl.style.height=Math.min(promptEl.scrollHeight,220)+"px";updateSend()});
+promptEl.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&state.settings.enterSend){e.preventDefault();sendMessage()}});
+function updateSend(){sendBtn.disabled=!((promptEl.value.trim())||state.files.length)}
+sendBtn.onclick=sendMessage;
+/* ================= Voice ================= */
+let recognition=null;
+const micButton=$("#mic-btn");
+function stopDictation(){if(!recognition)return;try{recognition.stop()}catch{} }
+micButton.setAttribute("aria-pressed","false");
+micButton.onclick=()=>{
+  const s=state.settings;
+  if(!s.voiceInput)return toast(t("voiceOff"));
+  if(recognition){stopDictation();return}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){promptEl.focus();toast(t("voiceNA")+" · On iPhone, use the microphone on the keyboard to dictate into this field.");return}
+  if(location.protocol!=="https:"&&location.hostname!=="localhost"&&location.hostname!=="127.0.0.1"){
+    toast("Microphone access requires a secure HTTPS connection.");return;
+  }
+  const r=new SR();recognition=r;
+  const base=promptEl.value.trim();let finalText="";
+  const baseLang=(s.language||"en").split("-")[0];
+  const speechLocales={en:"en-US",ar:"ar-DZ",fr:"fr-FR",ru:"ru-RU",es:"es-ES"};
+  r.lang=speechLocales[baseLang]||s.language||"en-US";
+  r.interimResults=true;r.continuous=false;r.maxAlternatives=1;
+  r.onstart=()=>{state.isListening=true;micButton.classList.add("listening");micButton.setAttribute("aria-pressed","true");micButton.setAttribute("aria-label","Stop dictation");toast(t("listening"))};
+  r.onresult=e=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const result=e.results[i],txt=result[0]?.transcript||"";
+      if(result.isFinal)finalText+=" "+txt;else interim+=" "+txt;
+    }
+    const dictated=[finalText.trim(),interim.trim()].filter(Boolean).join(" ");
+    promptEl.value=[base,dictated].filter(Boolean).join(base?" ":"").replace(/\s+/g," ").trim();
+    promptEl.dispatchEvent(new Event("input",{bubbles:true}));
+  };
+  r.onerror=e=>{
+    const errors={"not-allowed":"Microphone permission was denied. Allow microphone access in your browser settings.","service-not-allowed":"Speech recognition is blocked by this browser or device.","audio-capture":"No microphone was found. Check your device input.","no-speech":"No speech was detected. Try again.","network":"Speech recognition needs a working network connection.","aborted":"Dictation was cancelled."};
+    toast(errors[e.error]||("Speech recognition error: "+(e.error||"unknown")));
+  };
+  r.onend=()=>{state.isListening=false;recognition=null;micButton.classList.remove("listening");micButton.setAttribute("aria-pressed","false");micButton.setAttribute("aria-label","Start dictation")};
+  try{r.start()}catch(err){recognition=null;state.isListening=false;micButton.classList.remove("listening");micButton.setAttribute("aria-pressed","false");toast("Could not start microphone: "+(err?.message||"please try again"))}
+};
+/* ================= Messages ================= */
+const threadInner=$("#thread-inner");
+function renderMessage(m){
+  const wrap=document.createElement("div");wrap.className="msg"+(m.role==="user"?" user":"");wrap.id=m.id;
+  if(m.role==="user"){
+    wrap.innerHTML=`<div class="bubble">${esc(m.content||"Attachment")}${m.files?.length?`<div class="chips" style="padding:8px 0 0">${m.files.map(f=>`<span class="chip">${esc(f)}</span>`).join("")}</div>`:""}</div>`;
+  }else{
+    wrap.innerHTML=`<div class="avatar">${logoSVG}</div><div class="body"><div class="content">${state.settings.markdown?mdToHtml(m.content):`<p>${esc(m.content)}</p>`}</div>${m.time&&state.settings.timestamps?`<div style="font-size:10px;color:var(--text-tertiary);margin-top:6px">${new Date(m.time).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>`:""}${actionBar(m.id)}</div>`;
+  }
+  threadInner.appendChild(wrap);return wrap;
+}
+function renderMessages(){threadInner.innerHTML="";state.messages.forEach(renderMessage);scrollBottom()}
+function actionBar(id){return `<div class="actions">
+ <button class="action" data-act="copy" data-id="${id}" title="Copy">${I.copy}</button>
+ <button class="action" data-act="like" data-id="${id}" title="Good response">${I.like}</button>
+ <button class="action" data-act="dislike" data-id="${id}" title="Bad response">${I.dislike}</button>
+ <button class="action" data-act="share" data-id="${id}" title="Share">${I.share}</button>
+ <button class="action" data-act="regenerate" data-id="${id}" title="Regenerate">${I.refresh}</button></div>`}
+/* markdown */
+function mdToHtml(src){
+  let s=esc(src||"");const blocks=[];
+  s=s.replace(/```([\w+-]*)\n?([\s\S]*?)```/g,(mm,lang,code)=>{const i=blocks.push({lang:(lang||"text").toLowerCase(),code})-1;return "\u0000CB"+i+"\u0000"});
+  s=s.replace(/^### (.*)$/gm,"<h4>$1</h4>").replace(/^## (.*)$/gm,"<h3>$1</h3>").replace(/^# (.*)$/gm,"<h2>$1</h2>");
+  s=s.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>").replace(/\*(.+?)\*/g,"<em>$1</em>").replace(/`([^`\n]+)`/g,'<span class="inline-code">$1</span>');
+  s=s.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s=s.replace(/^\s*[-*] (.+)$/gm,"<li>$1</li>").replace(/((?:<li>.*<\/li>\n?)+)/g,"<ul>$1</ul>");
+  s=s.replace(/\n{2,}/g,"</p><p>").replace(/\n/g,"<br>");
+  s="<p>"+s+"</p>";
+  blocks.forEach((b,i)=>{s=s.replace("\u0000CB"+i+"\u0000",
+    `<div class="codeblock"><div class="code-head"><div class="code-left"><span class="code-traffic" aria-hidden="true"><i></i><i></i><i></i></span><span class="code-lang">${esc(b.lang)}</span></div><span class="code-actions">
+      <button data-copy="${i}">${I.copy} Copy</button><button data-run="${i}">${I.play} Run</button><button data-expand>${I.expand}</button>
+    </span></div><pre class="code${state.settings.codeWrap?" wrap":""}">${highlight(b.code,b.lang)}</pre></div>`)});
+  s=s.replace(/<p>(\s*(?:<div class="codeblock">|<ul>|<h[234]>))/g,"$1").replace(/(<\/div>|<\/ul>|<\/h[234]>)\s*<\/p>/g,"$1");
+  return s;
+}
+function highlight(code){
+  let x=esc(code);
+  x=x.replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)/g,'<span class="comment">$1</span>');
+  x=x.replace(/(&quot;.*?&quot;|&#39;.*?&#39;)/g,'<span class="str">$1</span>');
+  x=x.replace(/\b(const|let|var|function|return|if|else|for|while|class|import|from|export|default|def|print|async|await|new|try|catch|public|private|void|int|include|using|elif|lambda|None|True|False|true|false|null)\b/g,'<span class="kw">$1</span>');
+  x=x.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="num">$1</span>');
+  return x;
+}
+/* ================= Send pipeline ================= */
+async function sendMessage(){
+  if(state.isSending)return;
+  const text=promptEl.value.trim(),files=state.files.slice();
+  if(!text&&!files.length)return;
+  state.isSending=true;sendBtn.disabled=true;
+  const userMsg={id:uid(),role:"user",content:text,files:files.map(f=>f.name),time:Date.now()};
+  state.messages.push(userMsg);saveActiveChat();
+  renderMessage(userMsg);clearComposer();saveActiveChat();renderRecents();
+  const aId=uid();state.messages.push({id:aId,role:"assistant",content:"",time:Date.now()});
+  const shell=document.createElement("div");shell.className="msg";shell.id=aId;
+  shell.innerHTML=`<div class="avatar">${logoSVG}</div><div class="body"><div class="content"><div class="thinking"><span class="spinner"></span><span>${t("preparing")}</span></div></div></div>`;
+  threadInner.appendChild(shell);scrollBottom();
+  try{await runAssistant(aId,text,files)}
+  finally{state.isSending=false;updateSend()}
+}
+function target(id){return $("#"+CSS.escape(id)+" .content")}
+async function runAssistant(id,prompt,files){
+  const el=target(id),s=state.settings;
+  const payload={message:prompt,mode:state.mode,model:s.model,temperature:Number(s.temperature),systemPrompt:String(s.systemPrompt||"").trim()};
+  // Send recent turns so the backend can preserve conversational context.
+  // The current user message is already sent separately as `message`.
+  payload.history=state.messages
+    .filter(m=>m.id!==id&&(m.role==="user"||m.role==="assistant")&&typeof m.content==="string"&&m.content.trim())
+    .slice(0,-1).slice(-16).map(m=>({role:m.role,content:m.content}));
+  const buildFormData=()=>{
+    const fd=new FormData();
+    fd.append("message",payload.message);fd.append("mode",payload.mode);fd.append("model",payload.model);
+    fd.append("temperature",String(payload.temperature));fd.append("systemPrompt",payload.systemPrompt);
+    fd.append("history",JSON.stringify(payload.history));
+    files.forEach(f=>fd.append("files",f,f.name));
+    return fd;
+  };
+  const base=CONFIG.CHAT_ENDPOINT.replace(/\/$/,"");
+  const useStream=!!s.streaming;
+  try{
+    if(useStream){
+      try{
+        const r=await fetch(base+"/stream",{method:"POST",body:buildFormData(),headers:{"Accept":"text/event-stream"}});
+        if(!r.ok){let detail="Backend returned HTTP "+r.status;try{const d=await r.json();detail=d.error||detail}catch{}throw new Error(detail)}
+        if(!r.body)throw new Error("Streaming response is not supported by this browser");
+        const reader=r.body.getReader(),decoder=new TextDecoder();let buffer="",answer="";
+        const handleEvent=raw=>{
+          let event="message",data="";
+          for(const line of raw.split(/\r?\n/)){
+            if(line.startsWith("event:"))event=line.slice(6).trim();
+            else if(line.startsWith("data:"))data+=line.slice(5).trim();
+          }
+          if(!data)return;
+          let item={};try{item=JSON.parse(data)}catch{return}
+          if(event==="status"){
+            const labels={thinking:"Thinking",search:"Searching the web",agent:"Agents working",planning:"Planning",analysis:"Analyzing",review:"Reviewing results",generating:"Generating response"};
+            const label=item.label||labels[item.stage]||"Working";
+            if(el)el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(label)}</span></div>`;
+          }else if(event==="delta"){
+            if(typeof item.text==="string")answer+=item.text;
+          }else if(event==="error"){
+            throw new Error(item.error||"Backend task failed");
+          }
+        };
+        while(true){
+          const {value,done}=await reader.read();
+          if(done)break;
+          buffer+=decoder.decode(value,{stream:true});
+          const chunks=buffer.split(/\r?\n\r?\n/);buffer=chunks.pop()||"";
+          for(const chunk of chunks)handleEvent(chunk);
+        }
+        buffer+=decoder.decode();if(buffer.trim())handleEvent(buffer);
+        if(!answer.trim())throw new Error("Backend completed without returning an answer");
+        return await stream(id,answer);
+      }catch(streamErr){
+        console.warn("WormGPT stream failed, falling back to /api/chat:",streamErr);
+        // fall through to JSON path
+      }
+    }
+    // JSON path: POST /api/chat (also used when streaming is off or stream fails)
+    if(el)el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(t("preparing")||"Working")}</span></div>`;
+    const r=await fetch(base,{method:"POST",body:buildFormData(),headers:{"Accept":"application/json"}});
+    if(!r.ok){let detail="Backend returned HTTP "+r.status;try{const d=await r.json();detail=d.error||detail}catch{}throw new Error(detail)}
+    const data=await r.json();
+    const answer=(data.reply||data.response||"").trim();
+    if(!answer)throw new Error(data.error||"Backend completed without returning an answer");
+    // Optional search sources as a clean footer
+    let finalText=answer;
+    if(Array.isArray(data.sources)&&data.sources.length){
+      const lines=data.sources.slice(0,8).map((s,i)=>`${i+1}. ${s.title||"Source"}${s.url?" — "+s.url:""}`).join("\n");
+      finalText+="\n\n---\nSources:\n"+lines;
+    }
+    return await stream(id,finalText);
+  }catch(err){
+    const detail=location.protocol==="file:"?
+      "This HTML is opened directly from a device. A real AI response needs this page hosted with its backend, or a configured same-origin /api/chat service.":
+      "The AI backend could not complete the request: "+(err?.message||"Unknown error");
+    finish(id,"**Backend not connected**\n\n"+detail+"\n\nYour conversation is still saved locally. This interface will not invent a demo answer.");
+    console.warn("WormGPT backend:",err);
+  }
+}
+async function stream(id,text){
+  const el=target(id);el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${t("generating")}</span></div><div class="think-details">Building context · formatting output</div>`;
+  await wait(650);
+  if(!state.settings.streaming)return finish(id,text);
+  let out="";const step=Math.max(1,Math.ceil(text.length/70));
+  for(let i=0;i<text.length;i++){out+=text[i];if(i%step===0){el.innerHTML=mdToHtml(out);scrollBottom();await wait(14)}}
+  finish(id,text);
+}
+function finish(id,text){
+  const msg=state.messages.find(m=>m.id===id);if(msg){msg.content=text;saveActiveChat()}
+  const el=target(id);el.innerHTML=mdToHtml(text)+(state.settings.timestamps?`<div style="font-size:10px;color:var(--text-tertiary);margin-top:6px">${new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</div>`:"");
+  el.parentElement.insertAdjacentHTML("beforeend",actionBar(id));renderRecents();scrollBottom();
+}
+/* thread actions */
+threadInner.addEventListener("click",e=>{
+  const b=e.target.closest("[data-act]");if(b){
+    const id=b.dataset.id,act=b.dataset.act,msg=state.messages.find(m=>m.id===id);
+    if(act==="copy"){navigator.clipboard?.writeText(msg?.content||$("#"+CSS.escape(id)+" .content")?.innerText||"");b.classList.add("active");toast(t("copied"))}
+    if(act==="like"||act==="dislike")b.classList.toggle("active");
+    if(act==="share"){const txt=msg?.content||"";if(navigator.share)navigator.share({title:"WormGPT",text:txt});else{navigator.clipboard?.writeText(txt);toast(t("copied"))}}
+    if(act==="regenerate"){toast(t("regen"));const lastUser=[...state.messages].reverse().find(m=>m.role==="user");if(lastUser){state.messages=state.messages.filter(m=>m.id!==id);saveActiveChat();const w=$("#"+CSS.escape(id));w?.remove();const aId=uid();state.messages.push({id:aId,role:"assistant",content:"",time:Date.now()});const shell=document.createElement("div");shell.className="msg";shell.id=aId;shell.innerHTML=`<div class="avatar">${logoSVG}</div><div class="body"><div class="content"><div class="thinking"><span class="spinner"></span><span>${t("preparing")}</span></div></div></div>`;threadInner.appendChild(shell);runAssistant(aId,lastUser.content,[])}}
+    return;
+  }
+  const cb=e.target.closest("[data-copy]");if(cb){navigator.clipboard?.writeText(window.__cb?.[+cb.dataset.copy]||"");cb.lastChild.textContent=" Copied";setTimeout(()=>cb.innerHTML=I.copy+" Copy",1000)}
+  if(e.target.closest("[data-expand]")){const pre=e.target.closest(".codeblock").querySelector("pre");pre.classList.toggle("wrap");pre.style.maxHeight=pre.style.maxHeight?"":"none"}
+  const rb=e.target.closest("[data-run]");if(rb)runCode(window.__cb?.[+rb.dataset.run]||"",(rb.closest(".codeblock").querySelector(".code-lang")||{}).textContent||"text");
+});
+/* capture raw code */
+const origMd=mdToHtml;
+mdToHtml=function(src){window.__cb=[];const re=/(?:```)([\w+-]*)\n?([\s\S]*?)```/g;let mm;while((mm=re.exec(src||"")))window.__cb.push(mm[2].replace(/\n$/,""));return origMd(src)};
+/* ================= Code runner ================= */
+function runCode(code,lang){
+  if(!state.settings.codeExecution)return toast("Code execution is disabled in Settings");
+  const l=(lang||"").toLowerCase();
+  if(!["html","htm","css","javascript","js"].includes(l))return openModal(`<div class="dialog-head"><h3>${t("codePreview")}</h3><button class="icon-btn" data-close-modal>${I.close}</button></div><div class="dialog-body"><p>Local browser execution supports <b>HTML</b>, <b>CSS</b> and <b>JavaScript</b>. Python/C/C++ require a server-side runtime.</p></div>`);
+  let src=code;
+  if(l==="css")src=`<style>${code}.content,.msg.user .bubble,.composer textarea{font-size:var(--message-font-size,15.5px)}
+</style><main style="font-family:system-ui;padding:24px">CSS preview — style applied to this page.</main>`;
+  if(l==="js"||l==="javascript")src=`<main style="font-family:system-ui;padding:24px">JavaScript preview — check the Console tab.</main><script>${code.replace(/<\/script/gi,"<\\/script")}<\/script>`;
+  openPlayground(src);
+}
+let playSrc="",playFrame=null;
+function openPlayground(src){
+  playSrc=src;
+  openModal(`<div class="dialog wide"><div class="dialog-head"><h3>${t("codePreview")}</h3><button class="icon-btn" data-refresh title="Refresh">${I.refresh}</button><button class="icon-btn" data-close-modal>${I.close}</button></div>
+   <div class="play-tabs"><button class="active" data-ptab="preview">${t("preview")}</button><button data-ptab="console">${t("console")}</button></div>
+   <div class="dialog-body"><iframe class="run-frame" sandbox="allow-scripts"></iframe><div class="console" hidden></div></div></div>`,true);
+  playFrame=$(".run-frame");playFrame.srcdoc=src;window.__playLogs=[];
+}
+document.addEventListener("message",e=>{
+  if(playFrame&&e.source===playFrame.contentWindow&&e.data&&e.data.__cg){
+    window.__playLogs.push(e.data);const c=$(".console:not([hidden])");
+    if(c){c.insertAdjacentHTML("beforeend",`<div class="${e.data.level==="error"?"err":""}">${esc(e.data.text)}</div>`);c.scrollTop=c.scrollHeight}
+  }
+});
+const __origOpen=openPlayground;
+function openPlayground(src){__origOpen(`<script>
+const fmt=a=>a.map(x=>typeof x==="object"?JSON.stringify(x):String(x)).join(" ");
+["log","warn","error"].forEach(l=>{const o=console[l];console[l]=(...a)=>{parent.postMessage({__cg:1,level:l,text:fmt(a)},"*");o&&o.apply(console,a)}});
+window.onerror=(m)=>parent.postMessage({__cg:1,level:"error",text:"Error: "+m},"*");
+<\/script>`+src)}
+/* ================= Modal manager ================= */
+const modal=$("#modal"),modalDialog=$("#modal-dialog");
+function openModal(html,wide){modal.classList.remove("page-mode");modalDialog.className="dialog"+(wide?" wide":"");modalDialog.innerHTML=html;modal.classList.add("open");$$("[data-close-modal]",modalDialog).forEach(b=>b.onclick=closeModal)}
+function closeModal(){modal.classList.remove("open","page-mode");playFrame=null}
+$$("[data-close]",modal).forEach(el=>el.onclick=closeModal);
+modalDialog.addEventListener("click",e=>{
+  const tab=e.target.closest("[data-ptab]");if(!tab)return;
+  $$("[data-ptab]",modalDialog).forEach(b=>b.classList.toggle("active",b===tab));
+  const isConsole=tab.dataset.ptab==="console";$(".run-frame").hidden=isConsole;const c=$(".console",modalDialog);c.hidden=!isConsole;
+  if(isConsole){c.innerHTML=(window.__playLogs||[]).map(l=>`<div class="${l.level==="error"?"err":""}">${esc(l.text)}</div>`).join("")||'<span style="color:#6b6b7d">—</span>'}
+});
+modalDialog.addEventListener("click",e=>{if(e.target.closest("[data-refresh]")&&playFrame)playFrame.srcdoc=playFrame.srcdoc});
+function openSearchModal(){
+  openModal(`<div class="dialog-head"><h3>${t("searchTitle")}</h3><button class="icon-btn" data-close-modal aria-label="${t("close")}">${I.close}</button></div>
+   <div class="dialog-body">
+    <div class="search-page-intro"><div class="search-page-icon">${I.search}</div><div><h2>${t("searchTitle")}</h2><p>Find a message in your saved conversations. Results open the original chat at the matching message.</p></div></div>
+    <div class="search-field-wrap"><span>${I.search}</span><input class="search-input" id="srch-in" placeholder="${t("searchChats")}…" autocomplete="off"></div>
+    <div class="search-results" id="srch-res"><div class="search-empty">${I.chat}<div>Type a word or phrase to search your conversations.</div></div></div>
+   </div>`);
+  modal.classList.add("page-mode");
+  const inp=$("#srch-in"),res=$("#srch-res");
+  const draw=()=>{
+    const q=inp.value.trim().toLocaleLowerCase();
+    if(!q){res.innerHTML=`<div class="search-empty">${I.chat}<div>Start typing to search messages from your saved chats.</div></div>`;return}
+    const all=state.chats.flatMap(c=>(c.messages||[]).map(m=>({...m,chatId:c.id,chatTitle:c.title})));
+    if(state.messages.length&&!all.some(m=>m.id===state.messages[0]?.id))all.push(...state.messages.map(m=>({...m,chatId:state.activeChatId,chatTitle:"Current conversation"})));
+    const rows=all.filter(m=>(m.content||"").toLocaleLowerCase().includes(q)).slice(-100).reverse();
+    res.innerHTML=rows.map(m=>`<button data-chat="${esc(m.chatId||"")}" data-goto="${esc(m.id)}"><span class="search-result-icon">${I.chat}</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"><b style="display:block;font-size:12px;color:var(--text-tertiary);margin-bottom:4px">${esc(m.chatTitle||"Conversation")}</b><span style="font-size:13px;line-height:1.5">${esc((m.content||"Attachment").slice(0,150))}</span></span><span style="color:var(--text-tertiary)">${I.chevron}</span></button>`).join("")||`<div class="search-empty">${I.search}<div>${t("noMatches")}</div></div>`;
+    $$("[data-goto]",res).forEach(b=>b.onclick=()=>{
+      const chatId=b.dataset.chat,goto=b.dataset.goto;
+      closeModal();
+      if(chatId&&chatId!==state.activeChatId)openChat(chatId);
+      setTimeout(()=>document.getElementById(goto)?.scrollIntoView({behavior:"smooth",block:"center"}),100);
+    });
+  };
+  inp.oninput=draw;draw();inp.focus();
+}
+$("#share-btn").onclick=()=>{exportConversationTxt().catch(err=>{console.error(err);toast("Could not export this conversation")})};
+
+/* ================= Local workspace: projects, images and library ================= */
+const localDB={
+  get projects(){return store.get("wormgpt-projects",[])},
+  set projects(v){store.set("wormgpt-projects",v)},
+  get assets(){return store.get("wormgpt-assets",[])},
+  set assets(v){store.set("wormgpt-assets",v)}
+};
+async function exportConversationTxt(){
+  saveActiveChat();
+  const chat=state.chats.find(c=>c.id===state.activeChatId);
+  const messages=chat?.messages||state.messages;
+  if(!messages.length){toast("This conversation is empty");return}
+  const title=chat?.title||"WormGPT conversation";
+  const lines=[title,"Exported: "+new Date().toLocaleString(),"=".repeat(38),
+    ...messages.map(m=>(m.role==="user"?"YOU":"WORMGPT")+"\\n"+(m.content||"[Attachment]")+
+      (m.files?.length?"\\nAttachments: "+m.files.join(", "):""))];
+  const blob=new Blob([lines.join("\\n\\n")],{type:"text/plain;charset=utf-8"});
+  const filename="WormGPT-"+title.replace(/[^a-z0-9-_]+/gi,"-").slice(0,32)+"-"+new Date().toISOString().slice(0,10)+".txt";
+  // iPhone/iPad: native share sheet exposes Save to Files when supported.
+  try{
+    const file=new File([blob],filename,{type:"text/plain"});
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+      await navigator.share({files:[file],title:"Export WormGPT conversation"});
+      toast("Choose Save to Files to keep the TXT on your iPhone");
+      return;
+    }
+  }catch(err){if(err?.name==="AbortError")return;console.warn("Native file share unavailable",err)}
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=filename;a.style.display="none";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+  toast("TXT export started");
+}
+function openProjectsModal(){
+  const projects=localDB.projects;
+  openModal(`<div class="dialog-head"><h3>Projects</h3><button class="icon-btn" data-close-modal>${I.close}</button></div>
+  <div class="dialog-body"><p style="margin-bottom:14px">Create and organize local workspaces on this device.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"><input class="search-input" id="project-name" placeholder="Project name" style="flex:1;min-width:150px"><select class="select" id="project-type"><option value="general">General</option><option value="code">Code</option><option value="writing">Writing</option><option value="research">Research</option><option value="design">Design</option></select><button class="btn" id="create-project">Create</button></div>
+  <div id="project-list" style="display:grid;gap:8px">${projects.map(projectCard).join("")||'<p style="color:var(--text-tertiary)">No projects yet.</p>'}</div></div>`);
+  modal.classList.add("page-mode");
+  $("#create-project").onclick=()=>{
+    const name=$("#project-name").value.trim();if(!name)return toast("Enter a project name");
+    const all=localDB.projects;all.unshift({id:uid(),name,type:$("#project-type").value,created:Date.now()});localDB.projects=all;
+    $("#project-list").innerHTML=all.map(projectCard).join("");$("#project-name").value="";
+  };
+  $("#project-list").onclick=e=>{const b=e.target.closest("[data-project]");if(!b)return;const p=localDB.projects.find(x=>x.id===b.dataset.project);if(!p)return;closeModal();newChat();promptEl.value="Let's work on the project: "+p.name+" ("+p.type+").";promptEl.dispatchEvent(new Event("input"));};
+}
+function projectCard(p){const icons={general:I.folder,code:I.bolt,writing:I.chat,research:I.search,design:I.palette};return `<button class="menu-item" data-project="${esc(p.id)}" style="border:1px solid var(--border);border-radius:10px;padding:13px">${icons[p.type]||I.folder}<span style="flex:1;text-align:start"><b style="display:block">${esc(p.name)}</b><small style="color:var(--text-tertiary)">${esc(p.type)} · ${new Date(p.created).toLocaleDateString()}</small></span>${I.chevron}</button>`}
+function openAssetModal(kind){
+  const lang=(state.settings.language||"en").split("-")[0];
+  const copy={
+   en:{images:"Images",library:"Library",imagesSub:"Your saved visual files, gathered in one place.",librarySub:"Keep useful files close at hand in this browser.",saved:"Saved on this device",add:"Add files",empty:"Nothing saved here yet",emptySub:"Add images or files to build your personal library.",download:"Tap to download",tooBig:"is over 450 KB; choose a smaller file to save it here",items:"items"},
+   ar:{images:"الصور",library:"المكتبة",imagesSub:"صورك المحفوظة في مكان واحد.",librarySub:"احتفظ بملفاتك المهمة داخل هذا المتصفح.",saved:"محفوظة على هذا الجهاز",add:"إضافة ملفات",empty:"لا توجد ملفات محفوظة بعد",emptySub:"أضف صورًا أو ملفات لبناء مكتبتك الخاصة.",download:"اضغط للتنزيل",tooBig:"يتجاوز 450 كيلوبايت؛ اختر ملفًا أصغر لحفظه هنا",items:"عناصر"},
+   fr:{images:"Images",library:"Bibliothèque",imagesSub:"Vos images enregistrées réunies au même endroit.",librarySub:"Gardez vos fichiers utiles à portée de main.",saved:"Enregistrés sur cet appareil",add:"Ajouter des fichiers",empty:"Aucun élément enregistré",emptySub:"Ajoutez des images ou des fichiers à votre bibliothèque.",download:"Appuyer pour télécharger",tooBig:"dépasse 450 Ko ; choisissez un fichier plus petit",items:"éléments"},
+   es:{images:"Imágenes",library:"Biblioteca",imagesSub:"Tus imágenes guardadas en un solo lugar.",librarySub:"Ten tus archivos útiles siempre a mano.",saved:"Guardados en este dispositivo",add:"Añadir archivos",empty:"Aún no hay elementos guardados",emptySub:"Añade imágenes o archivos a tu biblioteca.",download:"Toca para descargar",tooBig:"supera 450 KB; elige un archivo más pequeño",items:"elementos"},
+   ru:{images:"Изображения",library:"Библиотека",imagesSub:"Все сохранённые изображения в одном месте.",librarySub:"Храните нужные файлы в этом браузере.",saved:"Сохранено на этом устройстве",add:"Добавить файлы",empty:"Пока ничего не сохранено",emptySub:"Добавьте изображения или файлы в библиотеку.",download:"Нажмите для скачивания",tooBig:"больше 450 КБ; выберите файл поменьше",items:"элементов"}
+  }[lang]||{images:"Images",library:"Library",imagesSub:"Your saved visual files, gathered in one place.",librarySub:"Keep useful files close at hand in this browser.",saved:"Saved on this device",add:"Add files",empty:"Nothing saved here yet",emptySub:"Add images or files to build your personal library.",download:"Tap to download",tooBig:"is over 450 KB; choose a smaller file to save it here",items:"items"};
+  const title=kind==="images"?copy.images:copy.library,sub=kind==="images"?copy.imagesSub:copy.librarySub;
+  const filtered=()=>localDB.assets.filter(a=>kind==="images"?a.type.startsWith("image/"):true);
+  const renderGrid=()=>{const list=filtered();return list.map(a=>assetCard(a,copy.download)).join("")||`<div class="asset-empty">${I.folder}<b style="display:block;color:var(--text);margin-bottom:5px">${copy.empty}</b>${copy.emptySub}</div>`};
+  openModal(`<div class="dialog-head"><h3>${title}</h3><button class="icon-btn" data-close-modal aria-label="Close">${I.close}</button></div>
+  <div class="dialog-body"><div id="asset-page">
+   <div class="asset-hero"><div class="asset-hero-icon">${kind==="images"?I.image:I.folder}</div><div><h2>${title}</h2><p>${sub}</p></div></div>
+   <div class="asset-toolbar"><p>${copy.saved} · <b id="asset-count">${filtered().length}</b> ${copy.items}</p><button class="asset-add" id="asset-add">${I.upload}<span>${copy.add}</span></button></div>
+   <div id="asset-grid">${renderGrid()}</div>
+  </div></div>`);
+  modal.classList.add("page-mode");
+  $("#asset-add").onclick=()=>{const input=document.createElement("input");input.type="file";input.multiple=true;input.accept=kind==="images"?"image/*":"";input.onchange=async()=>{const current=localDB.assets;for(const f of [...input.files]){if(f.size>450*1024){toast(f.name+" "+copy.tooBig);continue}try{const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)});current.unshift({id:uid(),name:f.name,type:f.type||"application/octet-stream",size:f.size,data,created:Date.now()})}catch{toast("Could not read "+f.name)}}localDB.assets=current;$("#asset-grid").innerHTML=renderGrid();$("#asset-count").textContent=filtered().length};input.click()};
+  $("#asset-grid").onclick=e=>{const b=e.target.closest("[data-asset]");if(!b)return;const a=localDB.assets.find(x=>x.id===b.dataset.asset);if(!a)return;const link=document.createElement("a");link.href=a.data;link.download=a.name;document.body.appendChild(link);link.click();link.remove()};
+}
+function assetCard(a,downloadLabel="Tap to download"){return `<button type="button" data-asset="${esc(a.id)}" aria-label="Download ${esc(a.name)}"><span class="asset-preview">${a.type.startsWith("image/")?`<img src="${a.data}" alt="${esc(a.name)}">`:`${I.paperclip}`}</span><span class="asset-name">${esc(a.name)}</span><small class="asset-meta">${(a.size/1024).toFixed(0)} KB · ${downloadLabel}</small></button>`}
+
+
+/* ================= Support desk ================= */
+const SUPPORT_TEXT={
+ en:{reportTitle:"WormGPT support request",issueLabel:"Issue type",languageLabel:"Interface language",descriptionLabel:"Description",closing:"Please let me know how to resolve this issue.",title:"Contact support",intro:"Tell us what went wrong. Your report will be prepared as a Telegram message.",kind:"Issue type",details:"Describe the problem",placeholder:"What happened? What did you expect? Include steps to reproduce the issue…",send:"Continue to Telegram",note:"Telegram will open the support chat with your report prefilled. Review it and press Send yourself.",required:"Please describe the issue before continuing.",categories:["Bug / something is broken","Feature is not working","Account or access issue","Design / display problem","Language or translation issue","Suggestion / feature request","Other"],aboutTitle:"A double-edged tool",aboutBody:"Power without judgment can become a weapon. Curiosity can illuminate or destroy; responsibility belongs to the person who chooses how to use it.",aboutIntro:"WormGPT is an experimental independent interface released as v1.0 Public.",aboutEthics:"Use this project lawfully and ethically. The interface does not grant permission to harm, intrude, or violate anyone’s privacy."},
+ ar:{reportTitle:"طلب دعم WormGPT",issueLabel:"نوع المشكلة",languageLabel:"لغة الواجهة",descriptionLabel:"الوصف",closing:"يرجى إرشادي إلى طريقة حل هذه المشكلة.",title:"التواصل مع الدعم",intro:"أخبرنا بما حدث. سنجهّز بلاغك في رسالة تيليغرام.",kind:"نوع المشكلة",details:"اشرح المشكلة",placeholder:"ماذا حدث؟ ماذا كنت تتوقع؟ اذكر خطوات إعادة ظهور المشكلة…",send:"المتابعة إلى تيليغرام",note:"سيفتح تيليغرام محادثة الدعم والبلاغ مكتوب مسبقاً. راجعه ثم اضغط إرسال بنفسك.",required:"يرجى وصف المشكلة قبل المتابعة.",categories:["خلل أو شيء لا يعمل","ميزة لا تعمل","مشكلة حساب أو وصول","مشكلة تصميم أو عرض","مشكلة لغة أو ترجمة","اقتراح أو طلب ميزة","أخرى"],aboutTitle:"أداة ذات حدّين",aboutBody:"القوة بلا حكمة قد تتحول إلى سلاح. قد ينير الفضول الطريق أو يدمّره؛ وتقع مسؤولية الاستخدام على من يختار كيف يستخدم الأداة.",aboutIntro:"WormGPT واجهة مستقلة تجريبية، صدرت بإصدار v1.0 Public.",aboutEthics:"استخدم هذا المشروع بشكل قانوني وأخلاقي. لا تمنح الواجهة إذناً بإيذاء الآخرين أو التطفل أو انتهاك خصوصيتهم."},
+ fr:{reportTitle:"Demande d’assistance WormGPT",issueLabel:"Type de problème",languageLabel:"Langue de l’interface",descriptionLabel:"Description",closing:"Merci de m’indiquer comment résoudre ce problème.",title:"Contacter le support",intro:"Expliquez-nous le problème. Votre rapport sera préparé dans un message Telegram.",kind:"Type de problème",details:"Décrivez le problème",placeholder:"Que s’est-il passé ? Qu’attendiez-vous ? Indiquez les étapes pour reproduire le problème…",send:"Continuer vers Telegram",note:"Telegram ouvrira la conversation d’assistance avec votre rapport prérempli. Vérifiez-le puis appuyez vous-même sur Envoyer.",required:"Veuillez décrire le problème avant de continuer.",categories:["Bug / dysfonctionnement","Fonctionnalité inactive","Problème de compte ou d’accès","Problème d’affichage","Langue ou traduction","Suggestion / demande de fonctionnalité","Autre"],aboutTitle:"Un outil à double tranchant",aboutBody:"La puissance sans discernement peut devenir une arme. La curiosité peut éclairer ou détruire ; la responsabilité appartient à la personne qui choisit comment utiliser l’outil.",aboutIntro:"WormGPT est une interface indépendante expérimentale publiée en version v1.0 Public.",aboutEthics:"Utilisez ce projet légalement et de manière éthique. L’interface n’autorise ni les préjudices, ni l’intrusion, ni la violation de la vie privée."},
+ es:{reportTitle:"Solicitud de soporte de WormGPT",issueLabel:"Tipo de problema",languageLabel:"Idioma de la interfaz",descriptionLabel:"Descripción",closing:"Por favor, indícame cómo resolver este problema.",title:"Contactar con soporte",intro:"Cuéntanos qué ha ocurrido. Prepararemos tu informe como mensaje de Telegram.",kind:"Tipo de problema",details:"Describe el problema",placeholder:"¿Qué ocurrió? ¿Qué esperabas? Incluye los pasos para reproducir el problema…",send:"Continuar a Telegram",note:"Telegram abrirá el chat de soporte con el informe ya escrito. Revísalo y pulsa Enviar tú mismo.",required:"Describe el problema antes de continuar.",categories:["Error / algo no funciona","Una función no funciona","Problema de cuenta o acceso","Problema de diseño o visualización","Idioma o traducción","Sugerencia / solicitud de función","Otro"],aboutTitle:"Una herramienta de doble filo",aboutBody:"El poder sin criterio puede convertirse en un arma. La curiosidad puede iluminar o destruir; la responsabilidad recae en quien decide cómo utilizar la herramienta.",aboutIntro:"WormGPT es una interfaz independiente experimental publicada como v1.0 Public.",aboutEthics:"Utiliza este proyecto de forma legal y ética. La interfaz no autoriza a causar daño, entrar sin permiso ni vulnerar la privacidad."},
+ ru:{reportTitle:"Запрос в поддержку WormGPT",issueLabel:"Тип проблемы",languageLabel:"Язык интерфейса",descriptionLabel:"Описание",closing:"Пожалуйста, подскажите, как решить эту проблему.",title:"Связаться с поддержкой",intro:"Расскажите, что произошло. Мы подготовим обращение для Telegram.",kind:"Тип проблемы",details:"Опишите проблему",placeholder:"Что произошло? Какого результата вы ожидали? Укажите шаги для воспроизведения…",send:"Перейти в Telegram",note:"Telegram откроет чат поддержки с готовым текстом обращения. Проверьте его и нажмите «Отправить» самостоятельно.",required:"Опишите проблему перед продолжением.",categories:["Ошибка / сбой","Функция не работает","Проблема аккаунта или доступа","Проблема дизайна или отображения","Язык или перевод","Предложение / запрос функции","Другое"],aboutTitle:"Орудие с двумя сторонами",aboutBody:"Сила без рассудительности может стать оружием. Любознательность способна просвещать или разрушать; ответственность несёт тот, кто выбирает, как использовать инструмент.",aboutIntro:"WormGPT — экспериментальный независимый интерфейс, выпущенный как v1.0 Public.",aboutEthics:"Используйте проект законно и этично. Интерфейс не даёт разрешения причинять вред, вторгаться в чужие системы или нарушать чью-либо конфиденциальность."}
+};
+const SUPPORT_USERNAME=String((window.WormGPT_CONFIG&&window.WormGPT_CONFIG.SUPPORT_USERNAME)||"spycore1").replace(/^@/,"");
+function openSupportModal(){
+ const lang=(state.settings.language||"en").split("-")[0],d=SUPPORT_TEXT[lang]||SUPPORT_TEXT.en;
+ openModal(`<div class="dialog-head"><h3>${d.title}</h3><button class="icon-btn" data-close-modal aria-label="${d.title}">${I.close}</button></div>
+ <div class="dialog-body"><div class="support-page">
+ <div class="support-hero"><div class="support-hero-icon">${I.shield}</div><div><h2>${d.title}</h2><p>${d.intro}</p></div></div>
+ <div class="support-form">
+ <label>${d.kind}<select id="support-kind">${d.categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select></label>
+ <label>${d.details}<textarea id="support-details" placeholder="${esc(d.placeholder)}" maxlength="4000" required></textarea></label>
+ <div class="support-note"><span aria-hidden="true">${I.info||I.shield}</span><span>${d.note}</span></div>
+ <button class="support-submit" id="support-send" type="button"><span>${d.send}</span>${I.send}</button>
+ </div></div></div>`);
+ modal.classList.add("page-mode");
+ $("#support-send").onclick=()=>{
+   const details=$("#support-details").value.trim();
+   if(!details){toast(d.required);$("#support-details").focus();return}
+   const category=$("#support-kind").value;
+   const message=`${d.reportTitle}\n${d.issueLabel}: ${category}\n${d.languageLabel}: ${lang}\n\n${d.descriptionLabel}:\n${details}\n\n${d.closing}`;
+   const url=`https://t.me/${encodeURIComponent(SUPPORT_USERNAME)}?text=${encodeURIComponent(message)}`;
+   // Use a real anchor navigation from the user gesture. This avoids iOS popup blockers
+   // that can silently reject window.open() inside embedded editors/webviews.
+   const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";a.style.display="none";
+   document.body.appendChild(a);a.click();a.remove();
+   toast(lang==="ar"?"تم فتح تيليغرام؛ راجع الرسالة واضغط إرسال":"Telegram opened. Review the draft and press Send.");
+ };
+}
+const settingsSupportButton=$("#settings-support");
+if(settingsSupportButton) settingsSupportButton.addEventListener("click",openSupportModal);
+function localizeSupportButton(){const b=$("#settings-support");if(b)b.textContent=({ar:"الدعم",fr:"Assistance",es:"Soporte",ru:"Поддержка"})[(state.settings.language||"en").split("-")[0]]||"Support";}
+$("#sidebar-support").addEventListener("click",function(ev){ev.preventDefault();ev.stopPropagation();closeSidebar();openSupportModal();});
+function localizeSidebarSupport(){
+ const lang=(state.settings.language||"en").split("-")[0];
+ const labels={ar:["الدعم","تواصل مع فريق WormGPT"],fr:["Assistance","Contacter l’équipe WormGPT"],es:["Soporte","Contacta con el equipo WormGPT"],ru:["Поддержка","Связаться с командой WormGPT"],en:["Support","Contact the WormGPT team"]};
+ const pair=labels[lang]||labels.en;$("#sidebar-support-label").textContent=pair[0];$("#sidebar-support-sub").textContent=pair[1];
+}
+localizeSidebarSupport();
+
+/* ================= Settings ================= */
+const SCOPY={
+ en:{tabs:{general:"General",appearance:"Appearance",chat:"Chat",personalization:"Personalization",voice:"Voice input",privacy:"Privacy",data:"Data controls",tools:"Tools",about:"About"},rows:{language:["Language","Interface language"],fontSize:["Font size","Text size across WormGPT"],compact:["Compact mode","Tighter message spacing"],enterSend:["Enter sends","Shift+Enter inserts a new line"],spellcheck:["Spellcheck","Use the browser spellchecker"],theme:["Theme","Light, dark or system"],accent:["Accent color","Primary WormGPT accent"],reducedMotion:["Reduce motion","Fewer animations"],model:["Default model","Model used for new requests"],temperature:["Temperature","Creativity control (0–1)"],streaming:["Streaming","Reveal output progressively"],markdown:["Render Markdown","Format headings, lists and code"],codeWrap:["Wrap code","Wrap long code lines"],autoScroll:["Auto-scroll","Keep the newest response visible"],timestamps:["Timestamps","Show response times"],systemPrompt:["Custom instructions","Sent to compatible backends"],voiceInput:["Voice input","Use your microphone to dictate messages"],privacyMode:["Private session mode","Do not save new conversations locally"],saveHistory:["Chat history","Store conversations in this browser"],__clear:["Clear all chats","Delete every locally saved conversation"],__export:["Export chats","Download the current conversation as TXT"],codeExecution:["Code preview","Allow local HTML, CSS and JavaScript previews"],__reset:["Reset settings","Restore all settings to their defaults"],__about:["About this project","WormGPT · v1.0 Public"],__v:["Version","Public release"]},options:{small:"Small",medium:"Medium",large:"Large",light:"Light",dark:"Dark",system:"System",reset:"Reset",clear:"Clear",export:"Export"},about:{title:"A double-edged tool",intro:"WormGPT is an experimental independent interface released as v1.0 Public.",body:"Power without judgment can become a weapon. Curiosity can illuminate or destroy; responsibility belongs to the person who chooses how to use it.",ethics:"Use this project lawfully and ethically. The interface does not grant permission to harm, intrude, or violate anyone’s privacy."},labels:{general:"General",appearance:"Appearance",chat:"Chat",personalization:"Personalization",voice:"Voice input",privacy:"Privacy",data:"Data controls",tools:"Tools",about:"About"}},
+ ar:{tabs:{general:"عام",appearance:"المظهر",chat:"المحادثة",personalization:"التخصيص",voice:"الإدخال الصوتي",privacy:"الخصوصية",data:"إدارة البيانات",tools:"الأدوات",about:"حول"},rows:{language:["اللغة","لغة واجهة التطبيق"],fontSize:["حجم الخط","حجم النصوص في WormGPT"],compact:["الوضع المضغوط","تقليل المسافات بين الرسائل"],enterSend:["الإرسال بزر Enter","استخدم Shift+Enter لإضافة سطر جديد"],spellcheck:["التدقيق الإملائي","استخدام مدقق المتصفح"],theme:["السمة","فاتح أو داكن أو حسب النظام"],accent:["اللون الأساسي","اللون الرئيسي لواجهة WormGPT"],reducedMotion:["تقليل الحركة","تقليل الرسوم المتحركة"],model:["النموذج الافتراضي","النموذج المستخدم للطلبات الجديدة"],temperature:["درجة الإبداع","التحكم في الإبداع (0–1)"],streaming:["البث التدريجي","إظهار الرد أثناء إنشائه"],markdown:["تنسيق Markdown","تنسيق العناوين والقوائم والأكواد"],codeWrap:["التفاف الأكواد","لف الأسطر البرمجية الطويلة"],autoScroll:["التمرير التلقائي","إبقاء أحدث رد ظاهراً"],timestamps:["الطوابع الزمنية","إظهار أوقات الردود"],systemPrompt:["تعليمات مخصصة","تُرسل إلى الخوادم المتوافقة"],voiceInput:["الإدخال الصوتي","استخدم الميكروفون لإملاء الرسائل"],privacyMode:["جلسة خاصة","عدم حفظ المحادثات الجديدة محلياً"],saveHistory:["سجل المحادثات","حفظ المحادثات في هذا المتصفح"],__clear:["مسح جميع المحادثات","حذف كل المحادثات المحفوظة محلياً"],__export:["تصدير المحادثات","تنزيل المحادثة الحالية بصيغة TXT"],codeExecution:["معاينة الأكواد","السماح بمعاينة HTML وCSS وJavaScript محلياً"],__reset:["إعادة ضبط الإعدادات","استعادة الإعدادات الافتراضية"],__about:["عن المشروع","WormGPT · الإصدار العام 1.0"],__v:["الإصدار","الإصدار العام"]},options:{small:"صغير",medium:"متوسط",large:"كبير",light:"فاتح",dark:"داكن",system:"النظام",reset:"إعادة ضبط",clear:"مسح",export:"تصدير"},about:{title:"أداة ذات حدّين",intro:"WormGPT واجهة مستقلة تجريبية، صدرت بإصدار v1.0 Public.",body:"القوة بلا حكمة قد تتحول إلى سلاح. قد ينير الفضول الطريق أو يدمّره؛ وتقع مسؤولية الاستخدام على من يختار كيف يستخدم الأداة.",ethics:"استخدم هذا المشروع بشكل قانوني وأخلاقي. لا تمنح الواجهة إذناً بإيذاء الآخرين أو التطفل أو انتهاك خصوصيتهم."}},
+ fr:{tabs:{general:"Général",appearance:"Apparence",chat:"Discussion",personalization:"Personnalisation",voice:"Saisie vocale",privacy:"Confidentialité",data:"Données",tools:"Outils",about:"À propos"},rows:{language:["Langue","Langue de l’interface"],fontSize:["Taille du texte","Taille du texte dans WormGPT"],compact:["Mode compact","Réduire l’espace entre les messages"],enterSend:["Entrée pour envoyer","Maj+Entrée pour insérer une nouvelle ligne"],spellcheck:["Correcteur orthographique","Utiliser le correcteur du navigateur"],theme:["Thème","Clair, sombre ou système"],accent:["Couleur d’accentuation","Couleur principale de WormGPT"],reducedMotion:["Réduire les animations","Moins d’animations"],model:["Modèle par défaut","Modèle utilisé pour les nouvelles demandes"],temperature:["Température","Contrôle de créativité (0–1)"],streaming:["Affichage progressif","Afficher la réponse progressivement"],markdown:["Rendu Markdown","Formater titres, listes et code"],codeWrap:["Retour à la ligne du code","Renvoyer les longues lignes à la ligne"],autoScroll:["Défilement automatique","Garder la réponse récente visible"],timestamps:["Horodatage","Afficher l’heure des réponses"],systemPrompt:["Instructions personnalisées","Envoyées aux serveurs compatibles"],voiceInput:["Saisie vocale","Dicter les messages avec le microphone"],privacyMode:["Session privée","Ne pas enregistrer les nouvelles conversations"],saveHistory:["Historique des discussions","Enregistrer les conversations dans ce navigateur"],__clear:["Effacer toutes les discussions","Supprimer les conversations locales"],__export:["Exporter les discussions","Télécharger la conversation en TXT"],codeExecution:["Aperçu du code","Autoriser les aperçus HTML, CSS et JavaScript locaux"],__reset:["Réinitialiser les paramètres","Restaurer les valeurs par défaut"],__about:["À propos du projet","WormGPT · v1.0 Public"],__v:["Version","Version publique"]},options:{small:"Petite",medium:"Moyenne",large:"Grande",light:"Clair",dark:"Sombre",system:"Système",reset:"Réinitialiser",clear:"Effacer",export:"Exporter"},about:{title:"Un outil à double tranchant",intro:"WormGPT est une interface indépendante expérimentale publiée en version v1.0 Public.",body:"La puissance sans discernement peut devenir une arme. La curiosité peut éclairer ou détruire ; la responsabilité appartient à la personne qui choisit comment utiliser l’outil.",ethics:"Utilisez ce projet légalement et de manière éthique. L’interface n’autorise ni les préjudices, ni l’intrusion, ni la violation de la vie privée."}},
+ es:{tabs:{general:"General",appearance:"Apariencia",chat:"Chat",personalization:"Personalización",voice:"Entrada de voz",privacy:"Privacidad",data:"Datos",tools:"Herramientas",about:"Acerca de"},rows:{language:["Idioma","Idioma de la interfaz"],fontSize:["Tamaño de fuente","Tamaño del texto en WormGPT"],compact:["Modo compacto","Reducir el espacio entre mensajes"],enterSend:["Enter envía","Mayús+Enter inserta una nueva línea"],spellcheck:["Corrector ortográfico","Usar el corrector del navegador"],theme:["Tema","Claro, oscuro o del sistema"],accent:["Color de acento","Color principal de WormGPT"],reducedMotion:["Reducir movimiento","Menos animaciones"],model:["Modelo predeterminado","Modelo para nuevas solicitudes"],temperature:["Temperatura","Control de creatividad (0–1)"],streaming:["Respuesta progresiva","Mostrar la respuesta gradualmente"],markdown:["Mostrar Markdown","Dar formato a títulos, listas y código"],codeWrap:["Ajustar código","Ajustar líneas de código largas"],autoScroll:["Desplazamiento automático","Mantener visible la respuesta más reciente"],timestamps:["Marcas de tiempo","Mostrar la hora de las respuestas"],systemPrompt:["Instrucciones personalizadas","Se envían a los servidores compatibles"],voiceInput:["Entrada de voz","Dictar mensajes con el micrófono"],privacyMode:["Sesión privada","No guardar nuevas conversaciones localmente"],saveHistory:["Historial de chats","Guardar conversaciones en este navegador"],__clear:["Borrar todos los chats","Eliminar las conversaciones guardadas localmente"],__export:["Exportar chats","Descargar la conversación actual como TXT"],codeExecution:["Vista previa de código","Permitir vistas previas locales de HTML, CSS y JavaScript"],__reset:["Restablecer ajustes","Restaurar los valores predeterminados"],__about:["Acerca del proyecto","WormGPT · v1.0 Public"],__v:["Versión","Lanzamiento público"]},options:{small:"Pequeño",medium:"Mediano",large:"Grande",light:"Claro",dark:"Oscuro",system:"Sistema",reset:"Restablecer",clear:"Borrar",export:"Exportar"},about:{title:"Una herramienta de doble filo",intro:"WormGPT es una interfaz independiente experimental publicada como v1.0 Public.",body:"El poder sin criterio puede convertirse en un arma. La curiosidad puede iluminar o destruir; la responsabilidad recae en quien decide cómo utilizar la herramienta.",ethics:"Utiliza este proyecto de forma legal y ética. La interfaz no autoriza a causar daño, entrar sin permiso ni vulnerar la privacidad."}},
+ ru:{tabs:{general:"Общие",appearance:"Внешний вид",chat:"Чат",personalization:"Персонализация",voice:"Голосовой ввод",privacy:"Конфиденциальность",data:"Управление данными",tools:"Инструменты",about:"О проекте"},rows:{language:["Язык","Язык интерфейса"],fontSize:["Размер шрифта","Размер текста в WormGPT"],compact:["Компактный режим","Уменьшить интервалы между сообщениями"],enterSend:["Enter отправляет","Shift+Enter — новая строка"],spellcheck:["Проверка орфографии","Использовать проверку браузера"],theme:["Тема","Светлая, тёмная или системная"],accent:["Цвет акцента","Основной цвет WormGPT"],reducedMotion:["Уменьшить анимацию","Меньше анимаций"],model:["Модель по умолчанию","Модель для новых запросов"],temperature:["Температура","Управление креативностью (0–1)"],streaming:["Потоковый вывод","Показывать ответ по мере создания"],markdown:["Форматирование Markdown","Форматировать заголовки, списки и код"],codeWrap:["Перенос строк кода","Переносить длинные строки кода"],autoScroll:["Автопрокрутка","Показывать последний ответ"],timestamps:["Временные метки","Показывать время ответов"],systemPrompt:["Пользовательские инструкции","Отправляются совместимым серверам"],voiceInput:["Голосовой ввод","Диктовать сообщения с микрофона"],privacyMode:["Приватный сеанс","Не сохранять новые беседы локально"],saveHistory:["История чатов","Хранить беседы в этом браузере"],__clear:["Очистить все чаты","Удалить все локально сохранённые беседы"],__export:["Экспорт чатов","Скачать текущую беседу в TXT"],codeExecution:["Предпросмотр кода","Разрешить локальный просмотр HTML, CSS и JavaScript"],__reset:["Сбросить настройки","Вернуть настройки по умолчанию"],__about:["О проекте","WormGPT · v1.0 Public"],__v:["Версия","Публичный выпуск"]},options:{small:"Маленький",medium:"Средний",large:"Большой",light:"Светлая",dark:"Тёмная",system:"Системная",reset:"Сбросить",clear:"Очистить",export:"Экспорт"},about:{title:"Орудие с двумя сторонами",intro:"WormGPT — экспериментальный независимый интерфейс, выпущенный как v1.0 Public.",body:"Сила без рассудительности может стать оружием. Любознательность способна просвещать или разрушать; ответственность несёт тот, кто выбирает, как использовать инструмент.",ethics:"Используйте проект законно и этично. Интерфейс не даёт разрешения причинять вред, вторгаться в чужие системы или нарушать чью-либо конфиденциальность."}}
+};
+const SETTINGS=[
+ ["general","general","settings",[["language","language","languageDesc",()=>({type:"select",options:Object.keys(langName).map(k=>[k,langName[k]])})],["fontSize","fontSize","fontSizeDesc",()=>({type:"select",options:[["14","small"],["16","medium"],["18","large"]]})],["compact","compact","compactDesc",()=>({type:"toggle"})],["enterSend","enterSend","enterSendDesc",()=>({type:"toggle"})],["spellcheck","spellcheck","spellcheckDesc",()=>({type:"toggle"})]]],
+ ["appearance","appearance","palette",[["theme","theme","themeDesc",()=>({type:"select",options:[["light","light"],["dark","dark"],["system","system"]]})],["accent","accent","accentDesc",()=>({type:"color"})],["reducedMotion","reducedMotion","reducedMotionDesc",()=>({type:"toggle"})]]],
+ ["chat","chat","chat",[["model","model","modelDesc",()=>({type:"select",options:MODELS.map(m=>[m,m])})],["temperature","temperature","temperatureDesc",()=>({type:"range",min:0,max:1,step:.1})],["streaming","streaming","streamingDesc",()=>({type:"toggle"})],["markdown","markdown","markdownDesc",()=>({type:"toggle"})],["codeWrap","codeWrap","codeWrapDesc",()=>({type:"toggle"})],["autoScroll","autoScroll","autoScrollDesc",()=>({type:"toggle"})],["timestamps","timestamps","timestampsDesc",()=>({type:"toggle"})]]],
+ ["personalization","personalization","user",[["systemPrompt","systemPrompt","systemPromptDesc",()=>({type:"textarea"})]]],
+ ["voice","voice","mic",[["voiceInput","voiceInput","voiceInputDesc",()=>({type:"toggle"})]]],
+ ["privacy","privacy","shield",[["privacyMode","privacyMode","privacyModeDesc",()=>({type:"toggle"})],["saveHistory","saveHistory","saveHistoryDesc",()=>({type:"toggle"})]]],
+ ["data","data","database",[["__clear","__clear","__clearDesc",()=>({type:"button",label:"clear"})],["__export","__export","__exportDesc",()=>({type:"button",label:"export"})]]],
+ ["tools","tools","bolt",[["codeExecution","codeExecution","codeExecutionDesc",()=>({type:"toggle"})],["__reset","__reset","__resetDesc",()=>({type:"button",label:"reset"})]]],
+ ["about","about","info",[["__about","__about","__aboutDesc",()=>({type:"about"})],["__v","__v","__vDesc",()=>({type:"static",value:"v1.0 Public"})]]]
+];
+const setNav=$("#set-nav"),setBody=$("#set-body");
+let settingsActiveSection="general";
+function renderSettings(){
+ const previousScroll=setBody.scrollTop;
+ const lang=(state.settings.language||"en").split("-")[0],c=SCOPY[lang]||SCOPY.en;
+ if(!SETTINGS.some(d=>d[0]===settingsActiveSection))settingsActiveSection="general";
+ setNav.innerHTML=SETTINGS.map(d=>`<button type="button" data-sec="${d[0]}" class="${d[0]===settingsActiveSection?"active":""}">${I[d[2]]||""}${c.tabs[d[1]]}</button>`).join("");
+ setBody.innerHTML=SETTINGS.map(d=>`<section class="set-sec ${d[0]===settingsActiveSection?"active":""}" data-sec="${d[0]}"><h3>${c.tabs[d[1]]}</h3>${d[3].map(([k,titleKey,descKey,ctrl])=>{const spec=ctrl(),v=state.settings[k],row=c.rows[k]||[k,k];let html="";
+  if(spec.type==="toggle")html=`<label class="toggle"><input data-key="${k}" type="checkbox" ${v?"checked":""} aria-label="${esc(row[0])}"><i></i></label>`;
+  else if(spec.type==="select")html=`<select class="select" data-key="${k}" aria-label="${esc(row[0])}">${spec.options.map(o=>{const label=langName[o[0]]||c.options[o[1]]||o[1];return `<option value="${esc(o[0])}" ${String(v)===o[0]?"selected":""}>${esc(label)}</option>`}).join("")}</select>`;
+  else if(spec.type==="color")html=`<input class="text-input" data-key="${k}" type="color" value="${esc(v||DEFAULT.accent)}" aria-label="${esc(row[0])}">`;
+  else if(spec.type==="range")html=`<div class="range-control"><input data-key="${k}" type="range" min="${spec.min}" max="${spec.max}" step="${spec.step}" value="${esc(v??.7)}" aria-label="${esc(row[0])}"><output>${Number(v??.7).toFixed(1)}</output></div>`;
+  else if(spec.type==="textarea")html=`<textarea class="text-input custom-instructions" data-key="${k}" rows="6" spellcheck="true" placeholder="Write instructions that should guide every AI response…" aria-label="${esc(row[0])}">${esc(v||"")}</textarea>`;
+  else if(spec.type==="button")html=`<button type="button" class="btn ${k==="__clear"?"danger":""}" data-action="${k}">${c.options[spec.label]}</button>`;
+  else if(spec.type==="static")html=`<span class="setting-static">${spec.value}</span>`;
+  else if(spec.type==="about")html=`<div class="about-copy"><div class="about-card"><h4>${c.about.intro}</h4><p>${c.about.ethics}</p></div><div class="about-card warning"><h4>${c.about.title}</h4><p>${c.about.body}</p></div><div class="about-meta"><span>WormGPT</span><span>v1.0 Public</span><span>${c.tabs.about}</span></div></div>`;
+  if(spec.type==="about")return `<div class="about-layout">${html}</div>`;
+  return `<div class="set-row ${k==="systemPrompt"?"set-row-custom":""}"><div class="set-label"><strong>${row[0]}</strong><span>${row[1]}</span></div>${html}</div>`}).join("")}</section>`).join("");
+ setNav.onclick=e=>{const b=e.target.closest("[data-sec]");if(!b)return;settingsActiveSection=b.dataset.sec;$$ ("[data-sec]",setNav).forEach(x=>x.classList.toggle("active",x===b));$$(".set-sec",setBody).forEach(x=>x.classList.toggle("active",x.dataset.sec===settingsActiveSection))};
+ setBody.onchange=e=>{const el=e.target;if(!el.dataset.key)return;const k=el.dataset.key;state.settings[k]=el.type==="checkbox"?el.checked:el.value;if(k==="systemPrompt"){store.set("wormgpt-settings",state.settings);return}if(k==="privacyMode")state.settings.saveHistory=!el.checked;if(k==="saveHistory")state.settings.privacyMode=!el.checked;applySettings(true)};
+ setBody.onclick=e=>{const b=e.target.closest("button[data-action]");if(b)dataAction(b.dataset.action)};
+ setBody.scrollTop=previousScroll;
+ setBody.oninput=e=>{
+  const el=e.target;
+  if(el.dataset.key==="systemPrompt"){state.settings.systemPrompt=el.value;store.set("wormgpt-settings",state.settings)}
+  if(el.dataset.key==="temperature"){const o=el.parentElement.querySelector("output");if(o)o.value=Number(el.value).toFixed(1)}
+};
+}
+function dataAction(a){
+ const lang=(state.settings.language||"en").split("-")[0];
+ if(a==="__clear"){
+  const copy={
+   en:{title:"Permanently delete all WormGPT data?",lead:"This is a destructive action and cannot be undone.",body:"Confirming will erase all data saved by WormGPT in this browser, including:",items:["All conversations, messages and chat history","Projects and their saved content","Images, uploaded assets and library items stored locally","Custom instructions, preferences and every WormGPT setting"],note:"This only clears WormGPT data stored in this browser. It does not delete files from your device or data held by an external server.",yes:"Yes, delete everything",no:"No, keep my data",done:"All WormGPT data stored in this browser has been deleted."},
+   ar:{title:"هل تريد حذف جميع بيانات WormGPT نهائياً؟",lead:"هذا إجراء خطير ولا يمكن التراجع عنه بعد التأكيد.",body:"عند التأكيد، سيتم حذف جميع البيانات التي حفظها WormGPT في هذا المتصفح، بما فيها:",items:["جميع المحادثات والرسائل وسجل الدردشة","المشاريع والمحتويات المحفوظة فيها","الصور والملفات المرفوعة وعناصر المكتبة المحفوظة محلياً","التعليمات المخصصة والتفضيلات وجميع إعدادات WormGPT"],note:"سيؤدي ذلك إلى حذف بيانات WormGPT المخزنة في هذا المتصفح فقط. لن يحذف الملفات من جهازك أو البيانات الموجودة على خادم خارجي.",yes:"نعم، احذف كل شيء",no:"لا، احتفظ ببياناتي",done:"تم حذف جميع بيانات WormGPT المخزنة في هذا المتصفح."},
+   fr:{title:"Supprimer définitivement toutes les données WormGPT ?",lead:"Cette action est destructive et irréversible.",body:"La confirmation effacera toutes les données WormGPT enregistrées dans ce navigateur :",items:["Toutes les conversations et tous les messages","Les projets et leur contenu enregistré","Les images, fichiers importés et éléments de bibliothèque locaux","Les instructions personnalisées et tous les paramètres"],note:"Cela efface uniquement les données WormGPT de ce navigateur, pas les fichiers de votre appareil ni les données d'un serveur externe.",yes:"Oui, tout supprimer",no:"Non, conserver mes données",done:"Toutes les données WormGPT locales ont été supprimées."},
+   es:{title:"¿Eliminar permanentemente todos los datos de WormGPT?",lead:"Esta acción es destructiva e irreversible.",body:"Al confirmar, se borrarán todos los datos de WormGPT guardados en este navegador:",items:["Todas las conversaciones y mensajes","Los proyectos y su contenido guardado","Las imágenes, archivos cargados y elementos locales de la biblioteca","Las instrucciones personalizadas y todos los ajustes"],note:"Esto solo borra los datos de WormGPT de este navegador, no los archivos del dispositivo ni los datos de servidores externos.",yes:"Sí, eliminar todo",no:"No, conservar mis datos",done:"Se eliminaron todos los datos locales de WormGPT."},
+   ru:{title:"Окончательно удалить все данные WormGPT?",lead:"Это разрушительное действие нельзя отменить.",body:"Подтверждение удалит все данные WormGPT, сохранённые в этом браузере:",items:["Все беседы, сообщения и история чатов","Проекты и сохранённое в них содержимое","Изображения, загруженные файлы и локальные элементы библиотеки","Пользовательские инструкции и все настройки"],note:"Удаляются только данные WormGPT в этом браузере, но не файлы устройства и не данные внешнего сервера.",yes:"Да, удалить всё",no:"Нет, сохранить данные",done:"Все локальные данные WormGPT удалены."}
+  }[lang]||{
+   title:"Permanently delete all WormGPT data?",lead:"This is a destructive action and cannot be undone.",body:"Confirming will erase all data saved by WormGPT in this browser, including:",items:["All conversations, messages and chat history","Projects and their saved content","Images, uploaded assets and library items stored locally","Custom instructions, preferences and every WormGPT setting"],note:"This only clears WormGPT data stored in this browser. It does not delete files from your device or data held by an external server.",yes:"Yes, delete everything",no:"No, keep my data",done:"All WormGPT data stored in this browser has been deleted."
+  };
+  const warningIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.8 19a1.4 1.4 0 0 0 1.2 2h16a1.4 1.4 0 0 0 1.2-2L12 3Z"/><path d="M12 9v5M12 17.5h.01"/></svg>';
+  openModal(`<div class="dialog-head"><h3>${esc(copy.title)}</h3><button class="icon-btn" type="button" data-close-modal aria-label="${esc(copy.no)}">${I.close}</button></div><div class="clear-warning"><div class="warning-mark">${warningIcon}</div><h3>${esc(copy.lead)}</h3><p>${esc(copy.body)}</p><ul>${copy.items.map(x=>`<li>${esc(x)}</li>`).join("")}</ul><div class="warning-note">${esc(copy.note)}</div><div class="warning-actions"><button type="button" class="cancel-clear" data-close-modal>${esc(copy.no)}</button><button type="button" class="confirm-clear" id="confirm-clear-all">${esc(copy.yes)}</button></div></div>`);
+  $("#confirm-clear-all").onclick=()=>{
+    try{
+      const keys=[];
+      for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key&&key.toLowerCase().startsWith("wormgpt-"))keys.push(key)}
+      keys.forEach(key=>localStorage.removeItem(key));
+      localStorage.removeItem("wormgpt-messages");
+    }catch(err){console.warn("WormGPT local data cleanup:",err)}
+    state.messages=[];state.chats=[];state.activeChatId=null;state.files=[];state.mode="normal";
+    state.settings=Object.assign({},DEFAULT);
+    closeModal();applySettings(false);renderMessages();renderRecents();updateSend();
+    if($("#settings").classList.contains("open")){settingsActiveSection="general";renderSettings()}
+    toast(copy.done);
+  };
+ }
+ if(a==="__export")exportConversationTxt();
+ if(a==="__reset"){state.settings=Object.assign({},DEFAULT);applySettings(true);renderSettings()}
+}
+function showSettingsPanel(ev){if(ev){ev.preventDefault();ev.stopPropagation()}const panel=$("#settings");closeSidebar();closeMenus();panel.classList.add("open");backdrop.classList.add("open");try{renderSettings()}catch(err){console.error("Settings render failed:",err);$("#set-body").innerHTML='<div style="padding:20px;color:var(--text)">Settings could not be fully rendered. Please reload and try again.</div>'}}
+$("#open-settings").addEventListener("click",showSettingsPanel);
+$("#settings-back").addEventListener("click",()=>{const p=$("#settings");p.classList.remove("open");p.style.pointerEvents="";p.style.transform="";p.style.zIndex="";p.style.visibility="";if(!sidebar.classList.contains("open"))backdrop.classList.remove("open")});
+/* ================= Init ================= */
+// One-time migration from the old single-history store. Once sessions exist, legacy
+// history is ignored and deleted so it can never leak into a newly-created chat.
+if(!state.chats.length){
+  let legacy=[];
+  if(state.settings.privacyMode||!state.settings.saveHistory){try{localStorage.removeItem("wormgpt-messages")}catch{} } else {try{legacy=JSON.parse(localStorage.getItem("wormgpt-messages")||"[]")}catch{}
+  if(Array.isArray(legacy)&&legacy.length){
+    state.activeChatId=uid();state.messages=cloneMessages(legacy);saveActiveChat();
+  }else{
+    state.messages=[];state.activeChatId=uid();
+    try{localStorage.removeItem("wormgpt-messages")}catch{}
+  }
+  }
+}else{
+  const active=state.chats.find(c=>c.id===state.activeChatId)||state.chats[0];
+  state.activeChatId=active.id;state.messages=cloneMessages(active.messages);
+  store.set("wormgpt-active-chat",state.activeChatId);
+  try{localStorage.removeItem("wormgpt-messages")}catch{}
+}
+applySettings(true);renderRecents();renderMessages();updateSend();
+$("#prompt").focus();
+window.WormGPT={state,sendMessage,applySettings,version:"1.4.0"};
+</script>
+</body>
+</html>

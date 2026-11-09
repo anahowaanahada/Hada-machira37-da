@@ -55,7 +55,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wormgpt")
 
-REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "65"))
+REQUEST_TIMEOUT = 25 # تقليل المهلة لمنع تعليق Render
 MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "4000"))
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "12")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "30000"))
@@ -249,14 +249,18 @@ def _post_completion(
             raise BackendError(f"{provider} model {model} not found.", 404, "model_not_found")
             
         if response.status_code == 429:
-            retry_after = int(response.headers.get("Retry-After", 5))
+            retry_after_str = response.headers.get("Retry-After", "5")
+            try:
+                retry_after = int(float(retry_after_str))
+            except (ValueError, TypeError):
+                retry_after = 5
+
             if provider == "groq":
                 _groq_cooldown_until = time.time() + retry_after
                 raise BackendError(f"Groq rate limit reached.", 429, "provider_rate_limit")
             else:
-                logger.warning("OpenRouter rate limit hit. Waiting %d seconds...", retry_after)
-                time.sleep(retry_after + 1) 
-                return _post_completion(provider=provider, key=key, url=url, model=model, messages=messages, temperature=temperature, max_tokens=max_tokens)
+                # التخلي الفوري والانتقال للمزود الآخر
+                raise BackendError(f"OpenRouter rate limit reached.", 429, "provider_rate_limit")
             
         if response.status_code in (401, 403):
             raise BackendError(f"{provider} rejected its API key.", 502, "provider_auth")
@@ -284,18 +288,11 @@ def call_ai(messages: list[dict[str, Any]], model_choice: str = "WormGPT High", 
 
     errors = []
     for candidate in candidates:
-        with _key_lock:
-            last = _key_last_used[candidate["key"]]
-            wait_for = max(0.0, 1.0 - (time.time() - last))
-        if wait_for:
-            time.sleep(wait_for)
         try:
             result = _post_completion(
                 provider=candidate["provider"], key=candidate["key"], url=candidate["url"],
                 model=candidate.get("model") or preset["model"], messages=messages, temperature=temperature,
             )
-            with _key_lock:
-                _key_last_used[candidate["key"]] = time.time()
             return result
         except BackendError as exc:
             errors.append(exc)
@@ -638,7 +635,7 @@ def _think_pipeline(messages: list[dict[str, Any]], model_choice: str, temperatu
         "to solve this request. Then, execute the plan and provide the complete final answer. "
         "Format your response as:\n### Plan\n<your plan>\n\n### Final Answer\n<your answer>"
     )
-    if isinstance(messages[-1]["content"], str):
+    if isinstance(messages[-1].get("content"), str):
         messages[-1]["content"] += think_instruction
     
     # استخدام نموذج High لضمان الجودة

@@ -81,13 +81,13 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_PRESETS = {
     "WormGPT High": {
         "provider": "openrouter",
-        # تم تصحيح اسم النموذج ليتوافق مع OpenRouter
+        # نموذج OpenRouter المجاني
         "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-2-9b-it:free"),
     },
     "WormGPT Fast": {
         "provider": "groq",
-        # تم تصحيح اسم النموذج ليتوافق مع Groq
-        "model": os.getenv("GROQ_FAST_MODEL", "llama3-8b-8192"),
+        # نموذج Groq السريع الحالي
+        "model": os.getenv("GROQ_FAST_MODEL", "llama-3.1-8b-instant"),
     },
     # Backward compatibility with the older backend/frontend names.
     "v6": {
@@ -186,7 +186,7 @@ def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
                 "provider": "groq",
                 "key": key,
                 "url": GROQ_URL,
-                "model": os.getenv("GROQ_FAST_MODEL", "llama3-8b-8192"),
+                "model": os.getenv("GROQ_FAST_MODEL", "llama-3.1-8b-instant"),
             })
     return candidates
 

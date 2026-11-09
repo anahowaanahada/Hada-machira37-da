@@ -81,16 +81,18 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL_PRESETS = {
     "WormGPT High": {
         "provider": "openrouter",
-        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
+        # تم تصحيح اسم النموذج ليتوافق مع OpenRouter
+        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-2-9b-it:free"),
     },
     "WormGPT Fast": {
         "provider": "groq",
-        "model": os.getenv("GROQ_FAST_MODEL", "llama-3.1-8b-instant"),
+        # تم تصحيح اسم النموذج ليتوافق مع Groq
+        "model": os.getenv("GROQ_FAST_MODEL", "llama3-8b-8192"),
     },
     # Backward compatibility with the older backend/frontend names.
     "v6": {
         "provider": "openrouter",
-        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
+        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-2-9b-it:free"),
     },
 }
 
@@ -176,7 +178,7 @@ def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
             "provider": "openrouter",
             "key": OPENROUTER_API_KEY,
             "url": OPENROUTER_URL,
-            "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
+            "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-2-9b-it:free"),
         })
     if preferred in (None, "groq", "openrouter") and GROQ_KEYS:
         for key in GROQ_KEYS:
@@ -184,7 +186,7 @@ def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
                 "provider": "groq",
                 "key": key,
                 "url": GROQ_URL,
-                "model": os.getenv("GROQ_FAST_MODEL", "llama-3.1-8b-instant"),
+                "model": os.getenv("GROQ_FAST_MODEL", "llama3-8b-8192"),
             })
     return candidates
 

@@ -178,37 +178,46 @@ def _next_groq_key() -> str | None:
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     
-    # OpenRouter First (as primary)
-    if preferred in (None, "openrouter") and OPENROUTER_API_KEY:
-        candidates.append({
-            "provider": "openrouter",
-            "key": OPENROUTER_API_KEY,
-            "url": OPENROUTER_URL,
-            "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
-        })
-        
-    # Groq Fallback (rotating keys and models)
-    if preferred in (None, "groq", "openrouter") and GROQ_KEYS:
-        # Try 120b first across all keys
+    openrouter_cand = {
+        "provider": "openrouter",
+        "key": OPENROUTER_API_KEY,
+        "url": OPENROUTER_URL,
+        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
+    }
+    
+    groq_cands = []
+    if GROQ_KEYS:
         for _ in range(len(GROQ_KEYS)):
             key = _next_groq_key()
             if key:
-                candidates.append({
+                groq_cands.append({
                     "provider": "groq",
                     "key": key,
                     "url": GROQ_URL,
                     "model": GROQ_FAST_MODEL,
                 })
-        # Try 20b as a second fallback
         for _ in range(len(GROQ_KEYS)):
             key = _next_groq_key()
             if key:
-                candidates.append({
+                groq_cands.append({
                     "provider": "groq",
                     "key": key,
                     "url": GROQ_URL,
                     "model": GROQ_FALLBACK_MODEL,
                 })
+
+    if preferred == "openrouter":
+        if OPENROUTER_API_KEY:
+            candidates.append(openrouter_cand)
+        candidates.extend(groq_cands)
+    elif preferred == "groq":
+        candidates.extend(groq_cands)
+        if OPENROUTER_API_KEY:
+            candidates.append(openrouter_cand) # OpenRouter كخطة بديلة مضمونة
+    else:
+        if OPENROUTER_API_KEY:
+            candidates.append(openrouter_cand)
+        candidates.extend(groq_cands)
                 
     return candidates
 
@@ -272,7 +281,6 @@ def _post_completion(
             raise BackendError(f"{provider} model {model} not found.", 404, "model_not_found")
             
         if response.status_code == 429:
-            # Respect Retry-After header for Groq
             retry_after = int(response.headers.get("Retry-After", 5))
             if provider == "groq":
                 _groq_cooldown_until = time.time() + retry_after
@@ -419,7 +427,6 @@ def search_web(query: str, limit: int = 6) -> list[dict[str, str]]:
 
     if SEARCH_API_URL and SEARCH_API_KEY:
         try:
-            # Tavily API expects a POST request with JSON payload
             payload = {
                 "api_key": SEARCH_API_KEY,
                 "query": query,

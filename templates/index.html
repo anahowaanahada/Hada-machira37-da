@@ -114,6 +114,11 @@ svg{display:block}
 .thinking{display:flex;align-items:center;gap:9px;color:var(--text-secondary);font-size:14px;padding:4px 0}
 .spinner{width:15px;height:15px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--cg-red);animation:spin var(--spin-duration,.8s) linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
+.spinner{filter:drop-shadow(0 0 3px rgba(204,0,0,.22));animation:spin var(--spin-duration,.8s) linear infinite,spinner-glow 1.5s ease-in-out infinite}
+@keyframes spinner-glow{0%,100%{filter:drop-shadow(0 0 2px rgba(204,0,0,.18))}50%{filter:drop-shadow(0 0 7px rgba(230,0,0,.55))}}
+.typing-cursor{display:inline-block;width:2px;height:1.05em;margin-inline-start:2px;vertical-align:-.16em;border-radius:2px;background:var(--cg-red);box-shadow:0 0 7px rgba(204,0,0,.55);animation:typing-blink .85s steps(2,start) infinite}
+@keyframes typing-blink{to{visibility:hidden}}
+
 .think-details{font-size:12.5px;color:var(--text-tertiary);padding-block:4px 0;padding-inline:24px 0}
 .search-state b{font-size:14px;color:var(--text-secondary)}
 .source-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -1767,18 +1772,17 @@ async function runAssistant(id,prompt,files,opts={}){
   }
 }
 async function consumeStream(id,r,onUsage){
-  const reader=r.body.getReader(),decoder=new TextDecoder();let buffer="",answer="",failure=null,lastPaint=0;
-  const paint=(force)=>{const now=performance.now();if(!force&&now-lastPaint<60)return;lastPaint=now;const el=target(id);if(el){el.innerHTML=state.settings.markdown?mdToHtml(answer):`<p>${esc(answer)}</p>`;scrollBottom()}};
+  const reader=r.body.getReader(),decoder=new TextDecoder();let buffer="",answer="",failure=null;
   const handleEvent=raw=>{
     let event="message",data="";
-    for(const line of raw.split(/\r?\n/)){
+    for(const line of raw.split(/\\r?\\n/)){
       if(line.startsWith("event:"))event=line.slice(6).trim();
       else if(line.startsWith("data:"))data+=line.slice(5).replace(/^ /,"");
     }
     if(!data)return;
     let item={};try{item=JSON.parse(data)}catch{return}
     if(event==="status"){if(!answer){const el=target(id);if(el)el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(statusLabel(item))}</span></div>`}}
-    else if(event==="delta"){if(typeof item.text==="string"){answer+=item.text;paint(false)}}
+    else if(event==="delta"){if(typeof item.text==="string")answer+=item.text}
     else if(event==="usage"){applyUsage(item);onUsage()}
     else if(event==="error"){failure=new ApiFailure(item.error||"upstream_error",item.message||item.error||"Backend task failed")}
   };
@@ -1787,33 +1791,39 @@ async function consumeStream(id,r,onUsage){
       const {value,done}=await reader.read();
       if(done)break;
       buffer+=decoder.decode(value,{stream:true});
-      const chunks=buffer.split(/\r?\n\r?\n/);buffer=chunks.pop()||"";
+      const chunks=buffer.split(/\\r?\\n\\r?\\n/);buffer=chunks.pop()||"";
       for(const chunk of chunks)handleEvent(chunk);
     }
     buffer+=decoder.decode();if(buffer.trim())handleEvent(buffer);
   }catch(netErr){failure=failure||new ApiFailure("network_error",netErr?.message||"Connection lost")}
   if(answer.trim()){
-    // Generation started on the server, so this request is already counted: keep what arrived.
-    finish(id,failure?answer+"\n\n> "+t("interrupted"):answer,failure?{partial:true}:{});
+    // Keep the thinking indicator visible while the server generates, then reveal the
+    // completed answer with the same typewriter treatment used by the JSON fallback.
+    const finalText=failure?answer+"\\n\\n> "+t("interrupted"):answer;
+    await stream(id,finalText,{keepThinking:true});
+    if(failure)persistMessage(id,{partial:true});
     return "ok";
   }
   throw failure||new ApiFailure("empty_response","Backend completed without returning an answer");
 }
-async function stream(id,text){
+async function stream(id,text,{keepThinking=false}={}){
   const el=target(id);
   if(!el||!state.settings.streaming||state.settings.reducedMotion)return finish(id,text);
-  el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(t("generating"))}</span></div><div class="think-details">${esc(t("genDetails"))}</div>`;
-  await wait(300);
+  if(!keepThinking){
+    el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(t("generating"))}</span></div><div class="think-details">${esc(t("genDetails"))}</div>`;
+  }
+  await wait(keepThinking?180:300);
   let out="";
-  // Keep prose fluid, but reveal fenced code in smaller, slower bursts so it feels like deliberate typing.
-  const parts=String(text).split(/(```[\w+#.-]*[^\n]*\n?[\s\S]*?(?:```|$))/g).filter(Boolean);
+  // Reveal prose smoothly and code in deliberate, smaller bursts instead of dumping a full block.
+  const parts=String(text).split(/(```[\\w+#.-]*[^\\n]*\\n?[\\s\\S]*?(?:```|$))/g).filter(Boolean);
   for(const part of parts){
     const isCode=part.startsWith("```");
-    const chunkSize=isCode?2:4,delay=isCode?24:15;
+    const chunkSize=isCode?2:3,delay=isCode?28:22;
     for(let i=0;i<part.length;i+=chunkSize){
       out+=part.slice(i,i+chunkSize);
       const cur=target(id);if(!cur){finish(id,text);return}
-      cur.innerHTML=mdToHtml(out);scrollBottom();
+      cur.innerHTML=mdToHtml(out)+'<span class="typing-cursor" aria-hidden="true"></span>';
+      scrollBottom();
       await wait(delay);
     }
   }

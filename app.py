@@ -24,7 +24,7 @@ from typing import Any
 from urllib.parse import quote_plus
 
 import requests
-from flask import Flask, Response, jsonify, request, stream_with_context
+from flask import Flask, Response, jsonify, request, send_file, stream_with_context
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 
@@ -887,15 +887,11 @@ def _parse_request_data() -> tuple[dict[str, Any], list]:
 
 @app.get("/")
 def index():
-    from flask import render_template
-    try:
-        return render_template("index.html")
-    except Exception:
-        return jsonify({
-            "name": "WormGPT API",
-            "status": "online",
-            "frontend": "Place the Stage 7 HTML at templates/index.html or serve it as a static page.",
-        })
+    # Serve the frontend as raw HTML. Do not pass it through Jinja:
+    # CSS selectors such as "{#asset-grid" are valid CSS but look like
+    # Jinja comment delimiters and can make template rendering fail.
+    frontend_path = os.path.join(app.root_path, "templates", "index.html")
+    return send_file(frontend_path, mimetype="text/html")
 
 
 @app.get("/api/health")

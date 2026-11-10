@@ -100,6 +100,9 @@ svg{display:block}
 .msg.user .bubble{background:var(--bubble-user);border:1px solid var(--bubble-border);border-radius:18px;padding:10px 16px;max-width:78%;font-size:15.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:var(--text)}
 .avatar{width:32px;height:32px;border-radius:0;background:transparent;display:flex;align-items:center;justify-content:center;flex:0 0 32px;margin-top:2px;padding:0;border:0}
 .avatar svg{width:32px;height:32px;display:block;flex:0 0 32px;background:transparent;border:0;border-radius:0;padding:0;margin:0}
+/* iOS Safari: keep inline assistant marks on their own stable paint layer. */
+.avatar{isolation:isolate;-webkit-transform:translateZ(0);transform:translateZ(0);-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.avatar svg{-webkit-transform:translateZ(0);transform:translateZ(0);-webkit-backface-visibility:hidden;backface-visibility:hidden;visibility:visible;opacity:1}
 .msg .body{min-width:0;max-width:100%;flex:1}
 .content{font-size:15.5px;line-height:1.7;word-break:break-word;color:var(--text)}
 .content p{margin:0 0 10px}.content p:last-child{margin-bottom:0}
@@ -1538,6 +1541,22 @@ micButton.onclick=()=>{
 /* ================= Messages ================= */
 const threadInner=$("#thread-inner");
 const timeLabel=ts=>new Date(ts).toLocaleTimeString(uiLocale(),{hour:"2-digit",minute:"2-digit"});
+// Safari/iOS can leave inline SVG marks unpainted until another view causes a layout refresh.
+// Replacing only the decorative SVG node forces a paint without changing chat content or state.
+let avatarPaintQueued=false;
+function queueAvatarPaint(root=threadInner){
+  if(avatarPaintQueued||!root)return;
+  avatarPaintQueued=true;
+  requestAnimationFrame(()=>{
+    avatarPaintQueued=false;
+    root.querySelectorAll?.(".avatar svg").forEach(svg=>{
+      if(!svg.isConnected)return;
+      const fresh=svg.cloneNode(true);
+      fresh.setAttribute("focusable","false");
+      svg.replaceWith(fresh);
+    });
+  });
+}
 function renderMessage(m){
   const wrap=document.createElement("div");wrap.className="msg"+(m.role==="user"?" user":"")+(m.error?" msg-error":"");wrap.id=m.id;
   if(m.role==="user"){
@@ -1545,9 +1564,9 @@ function renderMessage(m){
   }else{
     wrap.innerHTML=`<div class="avatar">${logoSVG}</div><div class="body"><div class="content" dir="auto">${state.settings.markdown?mdToHtml(m.content):`<p>${esc(m.content)}</p>`}</div>${m.time&&state.settings.timestamps?`<div class="msg-time" style="font-size:10px;color:var(--text-tertiary);margin-top:6px">${timeLabel(m.time)}</div>`:""}${actionBar(m.id,m.feedback)}</div>`;
   }
-  threadInner.appendChild(wrap);return wrap;
+  threadInner.appendChild(wrap);queueAvatarPaint(threadInner);return wrap;
 }
-function renderMessages(){threadInner.innerHTML="";state.messages.forEach(renderMessage);scrollBottom();if(typeof syncEmptyStage==="function")syncEmptyStage()}
+function renderMessages(){threadInner.innerHTML="";state.messages.forEach(renderMessage);queueAvatarPaint(threadInner);scrollBottom();if(typeof syncEmptyStage==="function")syncEmptyStage()}
 function actionBar(id,feedback){return `<div class="actions">
  <button type="button" class="action" data-act="copy" data-id="${esc(id)}" title="${esc(t("copy"))}" aria-label="${esc(t("copy"))}">${I.copy}</button>
  <button type="button" class="action" data-act="like" data-id="${esc(id)}" title="${esc(t("goodResponse"))}" aria-label="${esc(t("goodResponse"))}" aria-pressed="${feedback==="like"}">${I.like}</button>
@@ -1638,7 +1657,7 @@ async function sendMessage(){
   const aId=uid();state.messages.push({id:aId,role:"assistant",content:"",time:Date.now()});
   const shell=document.createElement("div");shell.className="msg";shell.id=aId;
   shell.innerHTML=shellHtml(t("preparing"));
-  threadInner.appendChild(shell);scrollBottom();
+  threadInner.appendChild(shell);queueAvatarPaint(threadInner);scrollBottom();
   try{
     const result=await runAssistant(aId,text,files,{userId:userMsg.id});
     if(result==="limit"){
@@ -1853,7 +1872,7 @@ const modal=$("#modal"),modalDialog=$("#modal-dialog");
 let modalReturnFocus=null;
 function openModal(html,wide){closeMenus();if(!modal.classList.contains("open"))modalReturnFocus=document.activeElement;modal.classList.remove("page-mode");modalDialog.className="dialog"+(wide?" wide":"");modalDialog.setAttribute("role","dialog");modalDialog.setAttribute("aria-modal","true");modalDialog.innerHTML=html;modal.classList.add("open");$$("[data-close-modal]",modalDialog).forEach(b=>b.onclick=closeModal);
   requestAnimationFrame(()=>{if(modal.classList.contains("open")&&!modalDialog.contains(document.activeElement))$("input,textarea,select,button:not([data-close-modal])",modalDialog)?.focus({preventScroll:true})})}
-function closeModal(){const wasOpen=modal.classList.contains("open");modal.classList.remove("open","page-mode");playFrame=null;if(wasOpen&&modalReturnFocus&&document.contains(modalReturnFocus))try{modalReturnFocus.focus({preventScroll:true})}catch{}modalReturnFocus=null}
+function closeModal(){const wasOpen=modal.classList.contains("open");modal.classList.remove("open","page-mode");playFrame=null;if(wasOpen&&modalReturnFocus&&document.contains(modalReturnFocus))try{modalReturnFocus.focus({preventScroll:true})}catch{}modalReturnFocus=null;queueAvatarPaint(threadInner)}
 $$("[data-close]",modal).forEach(el=>el.onclick=closeModal);
 modalDialog.addEventListener("click",e=>{
   const tab=e.target.closest("[data-ptab]");if(!tab)return;
@@ -2422,6 +2441,9 @@ function startIntro(){
   setTimeout(()=>dismissIntro(false),5400);
 }
 startIntro();
+// Repaint decorative assistant marks after the intro and when Safari restores the page.
+addEventListener("pageshow",()=>queueAvatarPaint(threadInner));
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")queueAvatarPaint(threadInner)});
 // Page-mode views (Library, Images, Projects, Search, Support) hide the stage while open.
 new MutationObserver(()=>syncEmptyStage()).observe($("#modal"),{attributes:true,attributeFilter:["class"]});
 /* Stable viewport height: iOS browser chrome makes 100vh/100dvh unreliable, so mirror the visual viewport. */

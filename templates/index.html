@@ -1317,6 +1317,9 @@ function openChat(id){
   renderMessages();
   renderRecents();
   closeSidebar();
+  // Repaint after the sidebar/chat transition on iOS Safari.
+  requestAnimationFrame(()=>queueAvatarPaint(threadInner));
+  setTimeout(()=>queueAvatarPaint(threadInner),180);
 }
 /* recents */
 function renderRecents(){
@@ -1541,19 +1544,33 @@ micButton.onclick=()=>{
 /* ================= Messages ================= */
 const threadInner=$("#thread-inner");
 const timeLabel=ts=>new Date(ts).toLocaleTimeString(uiLocale(),{hour:"2-digit",minute:"2-digit"});
-// Safari/iOS can leave inline SVG marks unpainted until another view causes a layout refresh.
-// Replacing only the decorative SVG node forces a paint without changing chat content or state.
+// Safari/iOS can defer painting inline SVG avatars while the intro or a page-mode
+// modal is animating. Repaint the decorative SVGs over two animation frames and
+// once after the transition settles; this does not touch message data or layout.
 let avatarPaintQueued=false;
 function queueAvatarPaint(root=threadInner){
   if(avatarPaintQueued||!root)return;
   avatarPaintQueued=true;
-  requestAnimationFrame(()=>{
-    avatarPaintQueued=false;
+  const paint=()=>{
+    if(!root.isConnected)return;
     root.querySelectorAll?.(".avatar svg").forEach(svg=>{
       if(!svg.isConnected)return;
       const fresh=svg.cloneNode(true);
       fresh.setAttribute("focusable","false");
+      fresh.setAttribute("aria-hidden","true");
       svg.replaceWith(fresh);
+      // Force WebKit to resolve the new SVG's geometry immediately.
+      fresh.getBoundingClientRect();
+    });
+  };
+  requestAnimationFrame(()=>{
+    paint();
+    requestAnimationFrame(()=>{
+      paint();
+      setTimeout(()=>{
+        paint();
+        avatarPaintQueued=false;
+      },140);
     });
   });
 }
@@ -2413,6 +2430,9 @@ function dismissIntro(immediate){
     el.hidden=true;
     el.setAttribute("aria-hidden","true");
     syncEmptyStage();
+    // The intro overlay can suppress the first SVG paint on iOS.
+    queueAvatarPaint(threadInner);
+    setTimeout(()=>queueAvatarPaint(threadInner),180);
   };
   if(instant){finish();return}
   el.classList.add("is-leaving");

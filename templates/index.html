@@ -1775,7 +1775,7 @@ async function consumeStream(id,r,onUsage){
   const reader=r.body.getReader(),decoder=new TextDecoder();let buffer="",answer="",failure=null;
   const handleEvent=raw=>{
     let event="message",data="";
-    for(const line of raw.split(/\\r?\\n/)){
+    for(const line of raw.split(/\r?\n/)){
       if(line.startsWith("event:"))event=line.slice(6).trim();
       else if(line.startsWith("data:"))data+=line.slice(5).replace(/^ /,"");
     }
@@ -1791,7 +1791,7 @@ async function consumeStream(id,r,onUsage){
       const {value,done}=await reader.read();
       if(done)break;
       buffer+=decoder.decode(value,{stream:true});
-      const chunks=buffer.split(/\\r?\\n\\r?\\n/);buffer=chunks.pop()||"";
+      const chunks=buffer.split(/\r?\n\r?\n/);buffer=chunks.pop()||"";
       for(const chunk of chunks)handleEvent(chunk);
     }
     buffer+=decoder.decode();if(buffer.trim())handleEvent(buffer);
@@ -1799,7 +1799,7 @@ async function consumeStream(id,r,onUsage){
   if(answer.trim()){
     // Keep the thinking indicator visible while the server generates, then reveal the
     // completed answer with the same typewriter treatment used by the JSON fallback.
-    const finalText=failure?answer+"\\n\\n> "+t("interrupted"):answer;
+    const finalText=failure?answer+"\n\n> "+t("interrupted"):answer;
     await stream(id,finalText,{keepThinking:true});
     if(failure)persistMessage(id,{partial:true});
     return "ok";
@@ -1815,7 +1815,7 @@ async function stream(id,text,{keepThinking=false}={}){
   await wait(keepThinking?180:300);
   let out="";
   // Reveal prose smoothly and code in deliberate, smaller bursts instead of dumping a full block.
-  const parts=String(text).split(/(```[\\w+#.-]*[^\\n]*\\n?[\\s\\S]*?(?:```|$))/g).filter(Boolean);
+  const parts=String(text).split(/(```[\w+#.-]*[^\n]*\n?[\s\S]*?(?:```|$))/g).filter(Boolean);
   for(const part of parts){
     const isCode=part.startsWith("```");
     const chunkSize=isCode?2:3,delay=isCode?28:22;

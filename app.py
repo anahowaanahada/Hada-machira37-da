@@ -77,18 +77,19 @@ GROQ_KEYS = [key for key in GROQ_KEYS if key]
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# Set Groq 120b as the absolute primary model for both High and Fast
 MODEL_PRESETS = {
     "WormGPT High": {
-        "provider": "openrouter",
-        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
+        "provider": "groq",
+        "model": os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-120b"),
     },
     "WormGPT Fast": {
         "provider": "groq",
         "model": os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-120b"),
     },
     "v6": {
-        "provider": "openrouter",
-        "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
+        "provider": "groq",
+        "model": os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-120b"),
     },
 }
 
@@ -175,7 +176,18 @@ def _next_groq_key() -> str | None:
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     
-    if preferred in (None, "openrouter") and OPENROUTER_API_KEY:
+    # 1. Primary: Groq 120b (Using all available keys)
+    if GROQ_KEYS:
+        for key in GROQ_KEYS:
+            candidates.append({
+                "provider": "groq",
+                "key": key,
+                "url": GROQ_URL,
+                "model": "openai/gpt-oss-120b",
+            })
+            
+    # 2. Fallback: OpenRouter (Rarely used, only if Groq fails or refuses)
+    if OPENROUTER_API_KEY:
         candidates.append({
             "provider": "openrouter",
             "key": OPENROUTER_API_KEY,
@@ -183,16 +195,15 @@ def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
             "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
         })
         
-    if preferred in (None, "groq", "openrouter") and GROQ_KEYS:
-        groq_models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
-        for model_id in groq_models:
-            for key in GROQ_KEYS:
-                candidates.append({
-                    "provider": "groq",
-                    "key": key,
-                    "url": GROQ_URL,
-                    "model": model_id,
-                })
+    # 3. Last Resort Fallback: Groq 20b
+    if GROQ_KEYS:
+        for key in GROQ_KEYS:
+            candidates.append({
+                "provider": "groq",
+                "key": key,
+                "url": GROQ_URL,
+                "model": "openai/gpt-oss-20b",
+            })
                 
     return candidates
 
@@ -252,6 +263,14 @@ def _post_completion(
         content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
     if not isinstance(content, str) or not content.strip():
         raise BackendError("empty answer", 502, "empty_provider_response")
+
+    # Refusal Detection (Only for 120b to trigger fallback if it refuses)
+    if model == "openai/gpt-oss-120b":
+        refusal_phrases = ["i cannot", "i can't", "i am unable", "as an ai", "i'm sorry", "against my", "cannot assist"]
+        if any(phrase in content.lower() for phrase in refusal_phrases):
+            logger.warning("Refusal detected from 120b, triggering fallback.")
+            raise BackendError("refusal", 400, "refusal")
+
     return content.strip()
 
 

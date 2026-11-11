@@ -580,7 +580,9 @@ html[data-cg-theme="light"] .menu::before{background:linear-gradient(90deg,trans
 .round-btn:focus-visible,.send-btn:focus-visible{border-radius:50%}
 .round-btn:active:not(:disabled),.action:active,.icon-btn:active,.share-btn:active,.usage-btn:active{transform:scale(.96)}
 .round-btn,.action,.icon-btn,.share-btn,.usage-btn{transition:background .15s,border-color .15s,color .15s,transform .12s,box-shadow .15s}
-.send-btn.is-sending{opacity:.7;cursor:progress}
+.send-btn.is-sending{opacity:.95;cursor:pointer}
+.send-btn.is-stop{background:#b42318;box-shadow:0 4px 14px rgba(180,35,24,.45)}
+.send-btn.is-stop:hover{background:#921d15}
 .select,.text-input,.search-input{transition:border-color .15s,box-shadow .15s}
 .select:hover,.text-input:hover{border-color:color-mix(in srgb,var(--cg-red) 35%,var(--border))}
 
@@ -622,6 +624,9 @@ html[data-cg-theme="light"] .menu::before{background:linear-gradient(90deg,trans
 .content blockquote{margin:10px 0;padding:6px 12px;border-inline-start:2px solid var(--border);color:var(--text-secondary)}
 .action[aria-pressed="true"]{color:var(--cg-red);background:var(--cg-red-soft)}
 .actions{opacity:.8;transition:opacity .15s}.msg:hover .actions,.actions:focus-within{opacity:1}
+.msg.user{flex-direction:column;align-items:flex-end}
+.msg.user .user-actions{opacity:.55;margin-top:4px;justify-content:flex-end}
+.msg.user:hover .user-actions,.msg.user .user-actions:focus-within{opacity:1}
 
 /* ---- desktop sidebar collapse ---- */
 @media(min-width:861px){.app.side-collapsed .sidebar{display:none}.app.side-collapsed .header .menu-btn{display:grid}}
@@ -1194,7 +1199,9 @@ const I={
  palette:svg('<path d="M12 3.8a8.2 8.2 0 0 0 0 16.4h1.3a1.7 1.7 0 1 0 0-3.4H12a1.8 1.8 0 0 1 0-3.6h4.8a3.2 3.2 0 0 0 3.2-3.4A8.2 8.2 0 0 0 12 3.8z"/><circle cx="7.5" cy="9" r=".8"/><circle cx="10" cy="6.7" r=".8"/><circle cx="14.2" cy="6.7" r=".8"/>'),
  bell:svg('<path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8z"/><path d="M10 21h4"/>'),
  shield:svg('<path d="M12 3 19 6.2v5c0 4.6-2.8 8.2-7 9.8-4.2-1.6-7-5.2-7-9.8v-5z"/><path d="m9 12 2 2 4-4"/>'),
- database:svg('<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>')
+ database:svg('<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>'),
+ stop:svg('<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/>'),
+ edit:svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>')
 };
 
 const LOGO='M22.282 9.821a6 6 0 0 0-.516-4.91 6.05 6.05 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a6 6 0 0 0-3.998 2.9 6.05 6.05 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.05 6.05 0 0 0 6.515 2.9A6 6 0 0 0 13.26 24a6.06 6.06 0 0 0 5.772-4.206 6 6 0 0 0 3.997-2.9 6.06 6.06 0 0 0-.747-7.073M13.26 22.43a4.48 4.48 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.8.8 0 0 0 .392-.681v-6.737l2.02 1.168a.07.07 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494M3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.77.77 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646M2.34 7.896a4.5 4.5 0 0 1 2.366-1.973V11.6a.77.77 0 0 0 .388.677l5.815 3.354-2.02 1.168a.08.08 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855-5.833-3.387L15.119 7.2a.08.08 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667m2.01-3.023-.141-.085-4.774-2.782a.78.78 0 0 0-.785 0L9.409 9.23V6.897a.07.07 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.8.8 0 0 0-.393.681zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z';
@@ -1239,10 +1246,19 @@ const TXS={
  ru:{srKicker:"Поиск сообщений",srChats:"Чаты",srMessages:"Сообщения",srClear:"Очистить поиск",srStartTitle:"Ищите по всему, что вы писали",srTip1:"Слова или фразы",srTip2:"Ответы WormGPT",srTip3:"Открывает нужное сообщение",srNoMatchSub:"Попробуйте более короткое слово или другое написание.",srResults:"Найдено: {n}",srLocal:"Поиск только на этом устройстве",srRoleYou:"Вы"}
 };
 for(const k in TXS)Object.assign(T[k],TXS[k]);
+/* Stop / edit / about i18n extras */
+const TX4={
+ en:{stop:"Stop",stopGenerating:"Stop generating",stopped:"Response stopped",stoppedNote:"Saved from where it stopped. You can continue or edit your message.",editMessage:"Edit message",editSave:"Save",editCancel:"Cancel",editHint:"Edit your message and send again",partialSaved:"Partial response saved",aboutKicker:"OFFICIAL RELEASE",aboutTitle:"WORMGPT — VERSION 1.0",aboutIntro:"The first full public release of WormGPT. Built for technical exploration, cybersecurity learning, security research, vulnerability analysis, scripting and automation.",aboutMissionTitle:"MISSION & CAPABILITIES",aboutMission:"WormGPT is an AI project focused on technical workflows and cybersecurity topics, including defensive assessment, authorized testing, analysis and practical programming assistance. Generated output should always be reviewed and tested before use.",aboutPhilosophyTitle:"PROJECT PHILOSOPHY",aboutPhilosophy:"Freedom of knowledge. Responsibility in action. We believe technical knowledge should be accessible, while respecting the safety, privacy and rights of other people.",aboutTermsTitle:"TERMS & RESPONSIBLE USE",aboutTerms:"Use WormGPT only for lawful, educational and authorized purposes. Do not use it to access systems without permission, compromise accounts, steal information, distribute malware, disrupt services or harm individuals or organizations. You are responsible for how you use generated content and for obtaining authorization before testing any system.",aboutAccuracyTitle:"ACCURACY & LIMITATIONS",aboutAccuracy:"AI-generated answers and code may be incomplete, outdated or incorrect. Verify important information, inspect code and test it in a safe environment. WormGPT is provided as-is and does not guarantee that every output will work or be suitable for a particular purpose.",aboutPrivacyTitle:"PRIVACY & DATA",aboutPrivacy:"Conversation history may be saved in your browser when history is enabled. Prompts and related request data are sent to the configured backend to provide the service. Avoid submitting passwords, private keys, financial details or other sensitive information. Data retention and processing depend on the service's actual backend and hosting configuration.",aboutSignoff:"FREEDOM OF KNOWLEDGE. RESPONSIBILITY IN ACTION.",aboutBuilt:"BUILT BY SHAD0W"},
+ ar:{stop:"إيقاف",stopGenerating:"إيقاف التوليد",stopped:"تم إيقاف الرد",stoppedNote:"تم الحفظ من حيث توقفت. يمكنك المتابعة أو تعديل رسالتك.",editMessage:"تعديل الرسالة",editSave:"حفظ",editCancel:"إلغاء",editHint:"عدّل رسالتك ثم أرسل من جديد",partialSaved:"تم حفظ الرد الجزئي",aboutKicker:"إصدار رسمي",aboutTitle:"WORMGPT — الإصدار 1.0",aboutIntro:"أول إصدار عام كامل من WormGPT. مبني للاستكشاف التقني، تعلم الأمن السيبراني، البحث الأمني، تحليل الثغرات، البرمجة والأتمتة.",aboutMissionTitle:"المهمة والإمكانيات",aboutMission:"WormGPT مشروع ذكاء اصطناعي يركز على سير العمل التقني ومواضيع الأمن السيبراني، بما في ذلك التقييم الدفاعي، الاختبار المصرّح به، التحليل والمساعدة البرمجية العملية. يجب دائماً مراجعة واختبار المخرجات قبل استخدامها.",aboutPhilosophyTitle:"فلسفة المشروع",aboutPhilosophy:"حرية المعرفة. المسؤولية في الفعل. نؤمن بأن المعرفة التقنية يجب أن تكون متاحة، مع احترام سلامة الآخرين وخصوصيتهم وحقوقهم.",aboutTermsTitle:"الشروط والاستخدام المسؤول",aboutTerms:"استخدم WormGPT لأغراض قانونية وتعليمية ومصرّح بها فقط. لا تستخدمه للوصول إلى أنظمة بدون إذن، أو اختراق حسابات، أو سرقة معلومات، أو توزيع برمجيات خبيثة، أو تعطيل خدمات، أو إيذاء أفراد أو مؤسسات. أنت مسؤول عن استخدام المحتوى المولّد وعن الحصول على إذن قبل اختبار أي نظام.",aboutAccuracyTitle:"الدقة والقيود",aboutAccuracy:"قد تكون الإجابات والأكواد المولّدة ناقصة أو قديمة أو غير صحيحة. تحقق من المعلومات المهمة، راجع الكود واختبره في بيئة آمنة. يُقدَّم WormGPT كما هو دون ضمان أن كل مخرج سيعمل أو يناسب غرضاً معيناً.",aboutPrivacyTitle:"الخصوصية والبيانات",aboutPrivacy:"قد يُحفظ سجل المحادثات في متصفحك عند تفعيل السجل. تُرسل المطالبات وبيانات الطلب إلى الخادم المُعدّ لتقديم الخدمة. تجنّب إرسال كلمات المرور والمفاتيح الخاصة والتفاصيل المالية أو أي معلومات حساسة. يعتمد الاحتفاظ بالبيانات ومعالجتها على إعدادات الخادم والاستضافة الفعلية.",aboutSignoff:"حرية المعرفة. المسؤولية في الفعل.",aboutBuilt:"بُني بواسطة SHAD0W"},
+ fr:{stop:"Arrêter",stopGenerating:"Arrêter la génération",stopped:"Réponse interrompue",stoppedNote:"Enregistré là où ça s’est arrêté. Vous pouvez continuer ou modifier votre message.",editMessage:"Modifier le message",editSave:"Enregistrer",editCancel:"Annuler",editHint:"Modifiez votre message et renvoyez-le",partialSaved:"Réponse partielle enregistrée",aboutKicker:"VERSION OFFICIELLE",aboutTitle:"WORMGPT — VERSION 1.0",aboutIntro:"La première version publique complète de WormGPT. Conçue pour l’exploration technique, l’apprentissage de la cybersécurité, la recherche en sécurité, l’analyse de vulnérabilités, le scripting et l’automatisation.",aboutMissionTitle:"MISSION ET CAPACITÉS",aboutMission:"WormGPT est un projet d’IA centré sur les flux techniques et la cybersécurité : évaluation défensive, tests autorisés, analyse et aide à la programmation. Vérifiez toujours les résultats avant utilisation.",aboutPhilosophyTitle:"PHILOSOPHIE DU PROJET",aboutPhilosophy:"Liberté de la connaissance. Responsabilité dans l’action. La connaissance technique doit être accessible, dans le respect de la sécurité, de la vie privée et des droits d’autrui.",aboutTermsTitle:"CONDITIONS ET USAGE RESPONSABLE",aboutTerms:"Utilisez WormGPT uniquement à des fins légales, éducatives et autorisées. N’accédez pas à des systèmes sans permission, ne compromettez pas de comptes, ne volez pas d’informations, ne distribuez pas de logiciels malveillants, ne perturbez pas de services et ne causez de préjudice à personne. Vous êtes responsable de l’usage du contenu généré.",aboutAccuracyTitle:"EXACTITUDE ET LIMITES",aboutAccuracy:"Les réponses et le code générés peuvent être incomplets, obsolètes ou incorrects. Vérifiez les informations importantes et testez le code dans un environnement sûr. WormGPT est fourni en l’état.",aboutPrivacyTitle:"CONFIDENTIALITÉ ET DONNÉES",aboutPrivacy:"L’historique peut être enregistré dans votre navigateur. Les invites sont envoyées au backend configuré. Évitez les mots de passe, clés privées et données sensibles.",aboutSignoff:"LIBERTÉ DE LA CONNAISSANCE. RESPONSABILITÉ DANS L’ACTION.",aboutBuilt:"CRÉÉ PAR SHAD0W"},
+ es:{stop:"Detener",stopGenerating:"Detener generación",stopped:"Respuesta detenida",stoppedNote:"Guardado desde donde se detuvo. Puedes continuar o editar tu mensaje.",editMessage:"Editar mensaje",editSave:"Guardar",editCancel:"Cancelar",editHint:"Edita tu mensaje y envíalo de nuevo",partialSaved:"Respuesta parcial guardada",aboutKicker:"LANZAMIENTO OFICIAL",aboutTitle:"WORMGPT — VERSIÓN 1.0",aboutIntro:"La primera versión pública completa de WormGPT. Creada para exploración técnica, aprendizaje de ciberseguridad, investigación de seguridad, análisis de vulnerabilidades, scripting y automatización.",aboutMissionTitle:"MISIÓN Y CAPACIDADES",aboutMission:"WormGPT es un proyecto de IA centrado en flujos técnicos y ciberseguridad: evaluación defensiva, pruebas autorizadas, análisis y ayuda de programación. Revisa siempre el resultado antes de usarlo.",aboutPhilosophyTitle:"FILOSOFÍA DEL PROYECTO",aboutPhilosophy:"Libertad del conocimiento. Responsabilidad en la acción. El conocimiento técnico debe ser accesible respetando la seguridad, privacidad y derechos de los demás.",aboutTermsTitle:"TÉRMINOS Y USO RESPONSABLE",aboutTerms:"Usa WormGPT solo con fines legales, educativos y autorizados. No accedas a sistemas sin permiso, no comprometas cuentas, no robes información, no distribuyas malware ni causes daño. Eres responsable del uso del contenido generado.",aboutAccuracyTitle:"PRECISIÓN Y LIMITACIONES",aboutAccuracy:"Las respuestas y el código pueden estar incompletos, desactualizados o ser incorrectos. Verifica la información importante y prueba el código en un entorno seguro. WormGPT se ofrece tal cual.",aboutPrivacyTitle:"PRIVACIDAD Y DATOS",aboutPrivacy:"El historial puede guardarse en el navegador. Las solicitudes se envían al backend configurado. Evita contraseñas, claves privadas y datos sensibles.",aboutSignoff:"LIBERTAD DEL CONOCIMIENTO. RESPONSABILIDAD EN LA ACCIÓN.",aboutBuilt:"CREADO POR SHAD0W"},
+ ru:{stop:"Стоп",stopGenerating:"Остановить генерацию",stopped:"Ответ остановлен",stoppedNote:"Сохранено с места остановки. Можно продолжить или изменить сообщение.",editMessage:"Редактировать",editSave:"Сохранить",editCancel:"Отмена",editHint:"Измените сообщение и отправьте снова",partialSaved:"Частичный ответ сохранён",aboutKicker:"ОФИЦИАЛЬНЫЙ РЕЛИЗ",aboutTitle:"WORMGPT — ВЕРСИЯ 1.0",aboutIntro:"Первый полноценный публичный релиз WormGPT. Создан для технического исследования, обучения кибербезопасности, анализа уязвимостей, скриптов и автоматизации.",aboutMissionTitle:"МИССИЯ И ВОЗМОЖНОСТИ",aboutMission:"WormGPT — ИИ-проект для технических задач и кибербезопасности: защитная оценка, авторизованное тестирование, анализ и помощь в программировании. Всегда проверяйте результат перед использованием.",aboutPhilosophyTitle:"ФИЛОСОФИЯ ПРОЕКТА",aboutPhilosophy:"Свобода знаний. Ответственность в действиях. Технические знания должны быть доступны с уважением к безопасности, приватности и правам других.",aboutTermsTitle:"УСЛОВИЯ И ОТВЕТСТВЕННОЕ ИСПОЛЬЗОВАНИЕ",aboutTerms:"Используйте WormGPT только в законных, образовательных и разрешённых целях. Не взламывайте системы, не крадите данные, не распространяйте вредоносное ПО и не причиняйте вред. Вы несёте ответственность за использование сгенерированного контента.",aboutAccuracyTitle:"ТОЧНОСТЬ И ОГРАНИЧЕНИЯ",aboutAccuracy:"Ответы и код могут быть неполными, устаревшими или неверными. Проверяйте важную информацию и тестируйте код в безопасной среде. WormGPT предоставляется «как есть».",aboutPrivacyTitle:"КОНФИДЕНЦИАЛЬНОСТЬ И ДАННЫЕ",aboutPrivacy:"История может сохраняться в браузере. Запросы отправляются на настроенный сервер. Не отправляйте пароли, ключи и чувствительные данные.",aboutSignoff:"СВОБОДА ЗНАНИЙ. ОТВЕТСТВЕННОСТЬ В ДЕЙСТВИЯХ.",aboutBuilt:"СОЗДАНО SHAD0W"}
+};
+for(const k in TX4)Object.assign(T[k],TX4[k]);
 /* ================= State ================= */
 const DEFAULT={theme:"dark",accent:"#CC0000",language:"en",voiceInput:true,voiceLanguage:"en-US",fontSize:"16",compact:false,enterSend:true,spellcheck:true,timestamps:true,markdown:true,codeWrap:false,showThinking:true,autoScroll:true,reducedMotion:false,privacyMode:false,saveHistory:true,analytics:false,model:"WormGPT High",temperature:"0.7",systemPrompt:"",streaming:true,codeExecution:true};
 const store={get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){console.warn("WormGPT local storage limit:",e);return false}}};
-const state={settings:Object.assign({},DEFAULT,store.get("wormgpt-settings",{})),messages:[],mode:"normal",files:[],isSending:false,isListening:false,chats:(Object.assign({},DEFAULT,store.get("wormgpt-settings",{})).privacyMode||Object.assign({},DEFAULT,store.get("wormgpt-settings",{})).saveHistory===false)?[]:store.get("wormgpt-sessions",[]),activeChatId:store.get("wormgpt-active-chat",null)};
+const state={settings:Object.assign({},DEFAULT,store.get("wormgpt-settings",{})),messages:[],mode:"normal",files:[],isSending:false,isListening:false,abortController:null,streamToken:0,partialOut:"",chats:(Object.assign({},DEFAULT,store.get("wormgpt-settings",{})).privacyMode||Object.assign({},DEFAULT,store.get("wormgpt-settings",{})).saveHistory===false)?[]:store.get("wormgpt-sessions",[]),activeChatId:store.get("wormgpt-active-chat",null)};
 /* ================= Helpers ================= */
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1585,8 +1601,46 @@ const promptEl=$("#prompt"),sendBtn=$("#send-btn");
 promptEl.addEventListener("input",()=>{promptEl.style.height="auto";promptEl.style.height=Math.min(promptEl.scrollHeight,220)+"px";updateSend()});
 // isComposing: Enter that confirms an IME candidate (Arabic, CJK keyboards) must not send.
 promptEl.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&e.keyCode!==229&&state.settings.enterSend){e.preventDefault();sendMessage()}});
-function updateSend(){sendBtn.disabled=state.isSending||!((promptEl.value.trim())||state.files.length)||isLimited()}
-sendBtn.onclick=sendMessage;
+function updateSend(){
+  if(state.isSending){
+    sendBtn.disabled=false;
+    sendBtn.classList.add("is-sending","is-stop");
+    sendBtn.innerHTML=I.stop;
+    sendBtn.setAttribute("aria-label",t("stopGenerating"));
+    sendBtn.title=t("stopGenerating");
+    return;
+  }
+  sendBtn.classList.remove("is-sending","is-stop");
+  sendBtn.innerHTML=I.send;
+  sendBtn.setAttribute("aria-label",t("send"));
+  sendBtn.title=t("send");
+  sendBtn.disabled=!((promptEl.value.trim())||state.files.length)||isLimited();
+}
+function stopGeneration(){
+  if(!state.isSending)return;
+  state.streamToken++; // invalidate in-flight typewriter
+  try{state.abortController?.abort()}catch{}
+  state.abortController=null;
+  // Keep whatever was typed so far
+  const partial=String(state.partialOut||"").trim();
+  const last=state.messages[state.messages.length-1];
+  if(last&&last.role==="assistant"){
+    const text=partial||last.content||"";
+    if(text){
+      finish(last.id,text,{partial:true});
+      toast(t("stopped"));
+    }else{
+      // nothing yet — remove empty assistant shell
+      state.messages=state.messages.filter(m=>m.id!==last.id);
+      document.getElementById(last.id)?.remove();
+      saveActiveChat();
+    }
+  }
+  state.isSending=false;
+  state.partialOut="";
+  updateSend();
+}
+sendBtn.onclick=()=>{if(state.isSending)stopGeneration();else sendMessage()};
 /* ================= Voice ================= */
 let recognition=null;
 const micButton=$("#mic-btn");
@@ -1647,9 +1701,10 @@ function queueAvatarPaint(root=threadInner){
 function renderMessage(m){
   const wrap=document.createElement("div");wrap.className="msg"+(m.role==="user"?" user":"")+(m.error?" msg-error":"");wrap.id=m.id;
   if(m.role==="user"){
-    wrap.innerHTML=`<div class="bubble" dir="auto">${esc(m.content||t("attachment"))}${m.files?.length?`<div class="chips" style="padding:8px 0 0">${m.files.map(f=>`<span class="chip" dir="auto">${esc(f)}</span>`).join("")}</div>`:""}</div>`;
+    wrap.innerHTML=`<div class="bubble" dir="auto">${esc(m.content||t("attachment"))}${m.files?.length?`<div class="chips" style="padding:8px 0 0">${m.files.map(f=>`<span class="chip" dir="auto">${esc(f)}</span>`).join("")}</div>`:""}</div>
+      <div class="actions user-actions"><button type="button" class="action" data-act="edit" data-id="${esc(m.id)}" title="${esc(t("editMessage"))}" aria-label="${esc(t("editMessage"))}">${I.edit}</button></div>`;
   }else{
-    wrap.innerHTML=`<div class="avatar">${logoSVG}</div><div class="body"><div class="content" dir="auto">${state.settings.markdown?mdToHtml(m.content):`<p>${esc(m.content)}</p>`}</div>${m.time&&state.settings.timestamps?`<div class="msg-time" style="font-size:10px;color:var(--text-tertiary);margin-top:6px">${timeLabel(m.time)}</div>`:""}${actionBar(m.id,m.feedback)}</div>`;
+    wrap.innerHTML=`<div class="avatar">${logoSVG}</div><div class="body"><div class="content" dir="auto">${state.settings.markdown?mdToHtml(m.content):`<p>${esc(m.content)}</p>`}</div>${m.time&&state.settings.timestamps?`<div class="msg-time" style="font-size:10px;color:var(--text-tertiary);margin-top:6px">${timeLabel(m.time)}</div>`:""}${m.partial?`<div class="msg-time" style="font-size:10px;color:var(--text-tertiary);margin-top:4px">${esc(t("partialSaved"))}</div>`:""}${actionBar(m.id,m.feedback)}</div>`;
   }
   threadInner.appendChild(wrap);queueAvatarPaint(threadInner);return wrap;
 }
@@ -1742,7 +1797,10 @@ async function sendMessage(){
   const text=promptEl.value.trim(),files=state.files.slice();
   if(!text&&!files.length)return;
   if(isLimited()){showLimitCard(true);return}
-  state.isSending=true;sendBtn.disabled=true;sendBtn.classList.add("is-sending");
+  state.isSending=true;
+  state.partialOut="";
+  state.abortController=typeof AbortController!=="undefined"?new AbortController():null;
+  updateSend();
   const userMsg={id:uid(),role:"user",content:text,files:files.map(f=>f.name),time:Date.now()};
   state.messages.push(userMsg);
   renderMessage(userMsg);if(typeof syncEmptyStage==="function")syncEmptyStage();clearComposer();saveActiveChat();renderRecents();
@@ -1751,9 +1809,8 @@ async function sendMessage(){
   shell.innerHTML=shellHtml(t("preparing"));
   threadInner.appendChild(shell);queueAvatarPaint(threadInner);scrollBottom();
   try{
-    const result=await runAssistant(aId,text,files,{userId:userMsg.id});
+    const result=await runAssistant(aId,text,files,{userId:userMsg.id,signal:state.abortController?.signal});
     if(result==="limit"){
-      // Not accepted by the server: undo the optimistic message and give the text back.
       state.messages=state.messages.filter(m=>m.id!==aId&&m.id!==userMsg.id);
       document.getElementById(aId)?.remove();document.getElementById(userMsg.id)?.remove();
       saveActiveChat();dropEmptyActiveChat();renderRecents();
@@ -1761,7 +1818,14 @@ async function sendMessage(){
       if(!state.files.length&&files.length){state.files=files;renderChips()}
       if(typeof syncEmptyStage==="function")syncEmptyStage();
     }
-  }finally{state.isSending=false;sendBtn.classList.remove("is-sending");updateSend()}
+  }catch(err){
+    if(err?.name==="AbortError"){/* stopped by user — handled in stopGeneration */}
+    else console.warn("WormGPT request:",err?.code||err?.message||"failed");
+  }finally{
+    state.isSending=false;
+    state.abortController=null;
+    updateSend();
+  }
 }
 function target(id){return document.getElementById(id)?.querySelector(".content")||null}
 function statusLabel(item){
@@ -1771,9 +1835,10 @@ function statusLabel(item){
 function failureText(err){
   const code=err?.code||"";
   if(location.protocol==="file:")return [t("backendTitle"),t("backendFile")];
-  const map={backend_not_configured:["notConfiguredTitle","notConfigured"],session_required:["requestError","sessionExpired"],rate_limited:["requestError","rateLimited"],too_many_concurrent:["requestError","busy"],request_in_progress:["requestError","busy"],payload_too_large:["requestError","tooLarge"],file_too_large:["requestError","tooLarge"],message_too_long:["requestError","tooLarge"],too_many_files:["requestError","tooLarge"],instructions_too_long:["requestError","tooLarge"],unsupported_file:["requestError","unsupportedFile"],ip_daily_limit_reached:["requestError","ipLimit"]};
-  if(map[code]){const [a,b]=map[code];const extra=(code==="unsupported_file"&&err.message)?" "+err.message:"";return [t(a),t(b)+extra]}
-  return [t("backendTitle"),t("backendFailed")+" "+(err?.message||"Unknown error")];
+  const map={backend_not_configured:["notConfiguredTitle","notConfigured"],session_required:["requestError","sessionExpired"],rate_limited:["requestError","rateLimited"],too_many_concurrent:["requestError","busy"],request_in_progress:["requestError","busy"],payload_too_large:["requestError","tooLarge"],file_too_large:["requestError","tooLarge"],message_too_long:["requestError","tooLarge"],too_many_files:["requestError","tooLarge"],instructions_too_long:["requestError","tooLarge"],unsupported_file:["requestError","unsupportedFile"],ip_daily_limit_reached:["requestError","ipLimit"],file_protocol:["backendTitle","backendFile"],empty_response:["requestError","interrupted"],upstream_error:["requestError","backendFailed"]};
+  if(map[code]){const [a,b]=map[code];return [t(a),t(b)]}
+  // Never surface raw stack traces, provider names, API keys or internal paths to the UI.
+  return [t("backendTitle"),t("backendFailed")];
 }
 async function runAssistant(id,prompt,files,opts={}){
   const s=state.settings;
@@ -1869,26 +1934,46 @@ async function consumeStream(id,r,onUsage){
   }
   throw failure||new ApiFailure("empty_response","Backend completed without returning an answer");
 }
+function nearBottom(el,threshold=120){
+  if(!el)return true;
+  return el.scrollHeight-el.scrollTop-el.clientHeight<threshold;
+}
 async function stream(id,text,{keepThinking=false}={}){
   const el=target(id);
   if(!el||!state.settings.streaming||state.settings.reducedMotion)return finish(id,text);
+  const myToken=++state.streamToken;
+  state.partialOut="";
   if(!keepThinking){
     el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(t("generating"))}</span></div><div class="think-details">${esc(t("genDetails"))}</div>`;
   }
-  await wait(keepThinking?180:300);
+  await wait(keepThinking?120:220);
+  if(myToken!==state.streamToken)return; // stopped
   let out="";
-  // Reveal prose smoothly and code in deliberate, smaller bursts instead of dumping a full block.
+  // Larger chunks for code so the UI stays responsive; smaller for prose.
   const parts=String(text).split(/(```[\w+#.-]*[^\n]*\n?[\s\S]*?(?:```|$))/g).filter(Boolean);
+  const thread=$("#thread");
   for(const part of parts){
+    if(myToken!==state.streamToken)break;
     const isCode=part.startsWith("```");
-    const chunkSize=isCode?2:3,delay=isCode?28:22;
+    // Code: fewer DOM writes (bigger chunks). Prose: smooth typing.
+    const chunkSize=isCode?48:8,delay=isCode?12:18;
     for(let i=0;i<part.length;i+=chunkSize){
+      if(myToken!==state.streamToken)break;
       out+=part.slice(i,i+chunkSize);
-      const cur=target(id);if(!cur){finish(id,text);return}
+      state.partialOut=out;
+      const cur=target(id);if(!cur){finish(id,out,{partial:true});return}
+      // Yield to the browser so the user can scroll and the page does not freeze.
       cur.innerHTML=mdToHtml(out)+'<span class="typing-cursor" aria-hidden="true"></span>';
-      scrollBottom();
+      if(state.settings.autoScroll&&nearBottom(thread))scrollBottom();
       await wait(delay);
+      // Extra yield every few updates so long code never locks the main thread.
+      if(isCode&&(i/chunkSize)%4===0)await wait(0);
     }
+  }
+  if(myToken!==state.streamToken){
+    // User pressed stop — finish() already handled in stopGeneration if partial exists.
+    if(out)state.partialOut=out;
+    return;
   }
   finish(id,text);
 }
@@ -1930,6 +2015,20 @@ threadInner.addEventListener("click",e=>{
     }
     if(act==="share"){const txt=msg?.content||"";if(navigator.share)navigator.share({title:"WormGPT",text:txt}).catch(()=>{});else{navigator.clipboard?.writeText(txt);toast(t("copied"))}}
     if(act==="regenerate")regenerate(id);
+    if(act==="edit"){
+      if(state.isSending){toast(t("busy"));return}
+      const m=findMessage(id).msg;
+      if(!m||m.role!=="user")return;
+      // Put text back in composer; remove this user msg and any following assistant replies so resend is clean.
+      const idx=state.messages.findIndex(x=>x.id===id);
+      if(idx<0)return;
+      promptEl.value=m.content||"";
+      promptEl.dispatchEvent(new Event("input"));
+      promptEl.focus();
+      state.messages=state.messages.slice(0,idx);
+      renderMessages();saveActiveChat();renderRecents();
+      toast(t("editHint"));
+    }
     return;
   }
   const block=e.target.closest(".codeblock");if(!block)return;
@@ -2260,14 +2359,14 @@ function renderSettings(){
   else if(spec.type==="button")html=`<button type="button" class="btn ${k==="__clear"?"danger":""}" data-action="${k}">${c.options[spec.label]}</button>`;
   else if(spec.type==="static")html=`<span class="setting-static">${spec.value}</span>`;
   else if(spec.type==="about")html=`<div class="about-copy about-faq">
-    <div class="about-card about-hero"><span class="about-kicker">OFFICIAL RELEASE</span><h4>WORMGPT — VERSION 1.0</h4><p>The first full public release of WormGPT. Built for technical exploration, cybersecurity learning, security research, vulnerability analysis, scripting and automation.</p></div>
-    <details class="about-card" open><summary><span>01</span><b>MISSION & CAPABILITIES</b><i>+</i></summary><p>WormGPT is an AI project focused on technical workflows and cybersecurity topics, including defensive assessment, authorized testing, analysis and practical programming assistance. Generated output should always be reviewed and tested before use.</p></details>
-    <details class="about-card"><summary><span>02</span><b>PROJECT PHILOSOPHY</b><i>+</i></summary><p>Freedom of knowledge. Responsibility in action. We believe technical knowledge should be accessible, while respecting the safety, privacy and rights of other people.</p></details>
-    <details class="about-card warning"><summary><span>03</span><b>TERMS & RESPONSIBLE USE</b><i>+</i></summary><p>Use WormGPT only for lawful, educational and authorized purposes. Do not use it to access systems without permission, compromise accounts, steal information, distribute malware, disrupt services or harm individuals or organizations. You are responsible for how you use generated content and for obtaining authorization before testing any system.</p></details>
-    <details class="about-card"><summary><span>04</span><b>ACCURACY & LIMITATIONS</b><i>+</i></summary><p>AI-generated answers and code may be incomplete, outdated or incorrect. Verify important information, inspect code and test it in a safe environment. WormGPT is provided as-is and does not guarantee that every output will work or be suitable for a particular purpose.</p></details>
-    <details class="about-card"><summary><span>05</span><b>PRIVACY & DATA</b><i>+</i></summary><p>Conversation history may be saved in your browser when history is enabled. Prompts and related request data are sent to the configured backend to provide the service. Avoid submitting passwords, private keys, financial details or other sensitive information. Data retention and processing depend on the service's actual backend and hosting configuration.</p></details>
-    <div class="about-meta"><span>WormGPT</span><span>v1.0 Public</span><span>BUILT BY SHAD0W</span></div>
-    <p class="about-signoff">FREEDOM OF KNOWLEDGE. RESPONSIBILITY IN ACTION.</p>
+    <div class="about-card about-hero"><span class="about-kicker">${esc(t("aboutKicker"))}</span><h4>${esc(t("aboutTitle"))}</h4><p>${esc(t("aboutIntro"))}</p></div>
+    <details class="about-card" open><summary><span>01</span><b>${esc(t("aboutMissionTitle"))}</b><i>+</i></summary><p>${esc(t("aboutMission"))}</p></details>
+    <details class="about-card"><summary><span>02</span><b>${esc(t("aboutPhilosophyTitle"))}</b><i>+</i></summary><p>${esc(t("aboutPhilosophy"))}</p></details>
+    <details class="about-card warning"><summary><span>03</span><b>${esc(t("aboutTermsTitle"))}</b><i>+</i></summary><p>${esc(t("aboutTerms"))}</p></details>
+    <details class="about-card"><summary><span>04</span><b>${esc(t("aboutAccuracyTitle"))}</b><i>+</i></summary><p>${esc(t("aboutAccuracy"))}</p></details>
+    <details class="about-card"><summary><span>05</span><b>${esc(t("aboutPrivacyTitle"))}</b><i>+</i></summary><p>${esc(t("aboutPrivacy"))}</p></details>
+    <div class="about-meta"><span>WormGPT</span><span>v1.0 Public</span><span>${esc(t("aboutBuilt"))}</span></div>
+    <p class="about-signoff">${esc(t("aboutSignoff"))}</p>
   </div>`;
   if(spec.type==="about")return `<div class="about-layout">${html}</div>`;
   return `<div class="set-row ${k==="systemPrompt"?"set-row-custom":""}"><div class="set-label"><strong>${row[0]}</strong><span>${row[1]}</span></div>${html}</div>`}).join("")}</div></section>`).join("");
@@ -2577,7 +2676,7 @@ new MutationObserver(()=>syncEmptyStage()).observe($("#modal"),{attributes:true,
   window.visualViewport?.addEventListener("resize",queue);
 })();
 // "v1.0 Public" is the public product label; "1.4.0" is the internal build line. Not changed here.
-window.WormGPT={state,sendMessage,applySettings,refreshUsage,quota,placeMenu,syncEmptyStage,version:"1.4.1",build:"repair-i18n-sidebar-2026-11-11"};
+window.WormGPT={state,sendMessage,applySettings,refreshUsage,quota,placeMenu,syncEmptyStage,stopGeneration,version:"1.4.2",build:"repair-i18n-stop-code-2026-11-11"};
 </script>
 <script>
 /* Independent splash failsafe: never leave the app covered if the main initializer fails. */

@@ -4165,5 +4165,84 @@ a,.content a,.action.active,.menu-item.active,.source.done{
 }
 </style>
 
+<style id="composer-voice-recorder-layout-fix">
+/* Only when the voice recorder is visible: allow the composer shell to grow
+   so the recording bar sits above the control row without crushing or
+   shifting the + / textarea / mic / send buttons. Default empty composer
+   stays the fixed compact 76px height. */
+#composer:has(#voice-recorder:not([hidden])){
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  justify-content:flex-start!important;
+  box-sizing:border-box!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  padding:9px 14px 8px!important;
+  gap:6px!important;
+  overflow:visible!important;
+}
+#composer:has(#voice-recorder:not([hidden])) > #voice-recorder{
+  display:flex!important;
+  flex:0 0 auto!important;
+  align-self:stretch!important;
+  width:100%!important;
+  min-width:0!important;
+  margin:0!important;
+  box-sizing:border-box!important;
+}
+#composer:has(#voice-recorder:not([hidden])) > #chips:not([hidden]){
+  display:flex!important;
+  flex:0 0 auto!important;
+  width:100%!important;
+  margin:0!important;
+  padding:0 2px 2px!important;
+}
+#composer:has(#voice-recorder:not([hidden])) > .composer-row{
+  display:flex!important;
+  flex:0 0 54px!important;
+  flex-flow:row nowrap!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  width:100%!important;
+  height:54px!important;
+  min-height:54px!important;
+  max-height:54px!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+  gap:18px!important;
+  box-sizing:border-box!important;
+}
+#composer:has(#voice-recorder:not([hidden])) > .composer-row > #plus-btn,
+#composer:has(#voice-recorder:not([hidden])) > .composer-row > #mic-btn,
+#composer:has(#voice-recorder:not([hidden])) > .composer-row > #send-btn{
+  display:flex!important;
+  flex-shrink:0!important;
+  align-self:center!important;
+  margin:0!important;
+}
+#composer:has(#voice-recorder:not([hidden])) > .composer-row > #prompt{
+  flex:1 1 0!important;
+  width:0!important;
+  min-width:0!important;
+  align-self:center!important;
+}
+@media(max-width:600px){
+  #composer:has(#voice-recorder:not([hidden])){
+    padding:7px 10px 7px!important;
+    gap:5px!important;
+  }
+  #composer:has(#voice-recorder:not([hidden])) > .composer-row{
+    flex-basis:46px!important;
+    height:46px!important;
+    min-height:46px!important;
+    max-height:46px!important;
+    gap:11px!important;
+  }
+}
+</style>
+
 </body>
 </html>

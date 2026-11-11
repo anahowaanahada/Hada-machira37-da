@@ -77,19 +77,19 @@ GROQ_KEYS = [key for key in GROQ_KEYS if key]
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Set Groq 120b as the absolute primary model for both High and Fast
+# Qwen 3.8 27B is the absolute primary model for both High and Fast
 MODEL_PRESETS = {
     "WormGPT High": {
         "provider": "groq",
-        "model": os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-120b"),
+        "model": os.getenv("GROQ_FAST_MODEL", "qwen/qwen3.8-27b"),
     },
     "WormGPT Fast": {
         "provider": "groq",
-        "model": os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-120b"),
+        "model": os.getenv("GROQ_FAST_MODEL", "qwen/qwen3.8-27b"),
     },
     "v6": {
         "provider": "groq",
-        "model": os.getenv("GROQ_FAST_MODEL", "openai/gpt-oss-120b"),
+        "model": os.getenv("GROQ_FAST_MODEL", "qwen/qwen3.8-27b"),
     },
 }
 
@@ -176,7 +176,17 @@ def _next_groq_key() -> str | None:
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     
-    # 1. Primary: Groq 120b (Using all available keys)
+    # 1. Primary: Groq Qwen 3.8 27B (Using all available keys)
+    if GROQ_KEYS:
+        for key in GROQ_KEYS:
+            candidates.append({
+                "provider": "groq",
+                "key": key,
+                "url": GROQ_URL,
+                "model": "qwen/qwen3.8-27b",
+            })
+            
+    # 2. First Fallback: Groq 120b
     if GROQ_KEYS:
         for key in GROQ_KEYS:
             candidates.append({
@@ -185,8 +195,8 @@ def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
                 "url": GROQ_URL,
                 "model": "openai/gpt-oss-120b",
             })
-            
-    # 2. Fallback: OpenRouter (Rarely used, only if Groq fails or refuses)
+
+    # 3. Second Fallback: OpenRouter
     if OPENROUTER_API_KEY:
         candidates.append({
             "provider": "openrouter",
@@ -195,7 +205,7 @@ def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
             "model": os.getenv("OPENROUTER_HIGH_MODEL", "google/gemma-4-31b-it:free"),
         })
         
-    # 3. Last Resort Fallback: Groq 20b
+    # 4. Last Resort: Groq 20b
     if GROQ_KEYS:
         for key in GROQ_KEYS:
             candidates.append({
@@ -264,11 +274,11 @@ def _post_completion(
     if not isinstance(content, str) or not content.strip():
         raise BackendError("empty answer", 502, "empty_provider_response")
 
-    # Refusal Detection (Only for 120b to trigger fallback if it refuses)
-    if model == "openai/gpt-oss-120b":
+    # Refusal Detection (Triggers fallback if Qwen or 120b refuses)
+    if model in ("qwen/qwen3.8-27b", "openai/gpt-oss-120b"):
         refusal_phrases = ["i cannot", "i can't", "i am unable", "as an ai", "i'm sorry", "against my", "cannot assist"]
         if any(phrase in content.lower() for phrase in refusal_phrases):
-            logger.warning("Refusal detected from 120b, triggering fallback.")
+            logger.warning("Refusal detected from %s, triggering fallback.", model)
             raise BackendError("refusal", 400, "refusal")
 
     return content.strip()

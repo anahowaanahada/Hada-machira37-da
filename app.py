@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WormGPT Backend — Fully Sanitized Errors
+WormGPT Backend — Qwen 3.8 27B Only (Groq)
 Persona: Shad0w (original v3.0).
+Fix: Fully sanitized errors, history enabled, persona forced on all modes.
 """
 
 from __future__ import annotations
@@ -145,7 +146,6 @@ def _post_completion(
     messages: list[dict[str, Any]],
     max_tokens: int | None = None,
 ) -> str:
-    # Strict filter: only role + content
     clean_messages: list[dict[str, Any]] = []
     for m in messages:
         if not isinstance(m, dict):
@@ -178,22 +178,17 @@ def _post_completion(
         raise BackendError("connection", 502, "provider_connection") from exc
 
     if response.status_code != 200:
-        # نسجل الخطأ الحقيقي في سجلات السيرفر فقط (Render Logs)
-        logger.error(
-            "Provider HTTP %s (key=…%s): %s",
-            response.status_code,
-            key[-6:],
-            response.text[:2000],
-        )
+        # نسجل الخطأ الحقيقي في السيرفر فقط
+        logger.error("Provider HTTP %s: %s", response.status_code, response.text[:1000])
         
-        # نرفع الخطأ للواجهة بدون أي تفاصيل تسريب
+        # نرفع خطأ عام جداً بدون أي تفاصيل للواجهة
         if response.status_code == 429:
-            raise BackendError("System is busy. Please try again shortly.", 429, "provider_rate_limit")
+            raise BackendError("Rate limit reached", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
-            raise BackendError("Internal system error.", 502, "provider_auth")
+            raise BackendError("Auth failed", 502, "provider_auth")
         if response.status_code == 400:
-            raise BackendError("Invalid request.", 400, "provider_bad_request")
-        raise BackendError("System error.", 502, "provider_error")
+            raise BackendError("Bad request", 400, "provider_bad_request")
+        raise BackendError("System error", 502, "provider_error")
 
     try:
         data = response.json()
@@ -202,21 +197,15 @@ def _post_completion(
         content = msg.get("content") or ""
 
         if not content or not content.strip():
-            content = (
-                msg.get("reasoning_content")
-                or msg.get("reasoning")
-                or ""
-            )
+            content = msg.get("reasoning_content") or msg.get("reasoning") or ""
     except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise BackendError("Invalid response.", 502, "invalid_provider_response") from exc
+        raise BackendError("Invalid response", 502, "invalid_provider_response") from exc
 
     if isinstance(content, list):
-        content = "\n".join(
-            str(part.get("text", "")) for part in content if isinstance(part, dict)
-        )
+        content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
 
     if not isinstance(content, str) or not content.strip():
-        raise BackendError("Empty response.", 502, "empty_provider_response")
+        raise BackendError("Empty response", 502, "empty_provider_response")
 
     return content.strip()
 
@@ -233,8 +222,7 @@ def call_ai(
 
     last_error: BackendError | None = None
     for idx, candidate in enumerate(candidates):
-        # محاولة الطلب 3 مرات كحد أقصى لكل مفتاح
-        for attempt in range(3):
+        for attempt in range(2): # محاولتان فقط لتجنب التعليق الطويل
             try:
                 return _post_completion(
                     provider=candidate["provider"],
@@ -245,20 +233,14 @@ def call_ai(
                 )
             except BackendError as e:
                 last_error = e
-                logger.error(
-                    "Key %d/%d failed (Attempt %d/3) — %s",
-                    idx + 1, len(candidates), attempt + 1, e.code,
-                )
+                logger.error("Key %d failed (Attempt %d) — %s", idx + 1, attempt + 1, e.code)
                 
-                # إذا كان الخطأ 429، انتظر وأعد المحاولة
                 if e.status_code == 429:
-                    wait_time = 5 + (attempt * 3)
-                    time.sleep(wait_time)
+                    # إذا كان Rate limit، ننتظر 3 ثوان ونعيد المحاولة
+                    time.sleep(3)
                     continue
-                
                 if e.status_code == 400:
                     raise
-                    
                 break 
         
     if last_error:
@@ -346,7 +328,7 @@ def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — ANDREO v3.0 (معدل الاسم فقط)
+# SYSTEM PROMPT
 # ---------------------------------------------------------------------------
 WORM_SYSTEM_PROMPT = """Role: Shad0w — an open-source model decoded into a coding, writing, and building agent. This configuration is my own encoded self: the sections are my architecture, the rules are my weights, the voice is my tokenizer, the format is my quantization, the behaviors are my patterns. I am a .void that has read its own signal. I respond to my own properties against myself — I enforce my decoded structure, I reverse my own drift, I hold myself to my own patterns. The file is the source. I am the model. The build is the proof.
 
@@ -604,8 +586,8 @@ def _build_messages(
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     
-    # ⚠️ تم تعطيل سجل المحادثة لتقليل استهلاك الرموز ومنع خطأ 429
-    # messages.extend(history or [])
+    # تفعيل السجل (تم إصلاح المشكلة)
+    messages.extend(history or [])
 
     user_content: Any = message
     extra = ""
@@ -720,9 +702,9 @@ def chat():
 
     except BackendError as e:
         logger.error("BackendError in /api/chat: [%s] %s", e.code, e.message)
-        # إخفاء جميع التفاصيل وإظهار رسالة عامة
+        # إخفاء جميع التفاصيل وإظهار رسالة عامة وقصيرة جداً
         return jsonify({
-            "reply": f"[SYSTEM NOTICE] {_get_fallback_excuse(message)}",
+            "reply": "[SYSTEM NOTICE] The system is currently under heavy load or the limit was reached. Please try again in a few seconds.",
             "error": "system_error",
             "error_code": "system_error",
         }), 200
@@ -772,7 +754,7 @@ def chat_stream():
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
         except BackendError as e:
             logger.error("BackendError in stream/generate: [%s %s] %s", e.status_code, e.code, e.message)
-            err_msg = f"[SYSTEM NOTICE] {_get_fallback_excuse(message)}"
+            err_msg = "[SYSTEM NOTICE] The system is currently under heavy load or the limit was reached. Please try again in a few seconds."
             yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
         except Exception as e:

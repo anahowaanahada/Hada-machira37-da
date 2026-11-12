@@ -3,7 +3,7 @@
 """
 WormGPT Backend — Qwen 3.8 27B Only (Groq)
 Persona: ANDREO (original v3.0).
-Fix: Added SSE heartbeats to prevent Render idle timeout interruption.
+Fix: True streaming implementation with stream=True to prevent Render idle timeout.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import re
 import threading
 import time
 from collections import defaultdict, deque
-from typing import Any
+from typing import Any, Generator
 
 import requests
 from flask import Flask, Response, jsonify, request, send_file, stream_with_context
@@ -137,7 +137,7 @@ def _headers(provider: str, key: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
-def _post_completion(
+def _stream_completion(
     *,
     provider: str,
     key: str,
@@ -145,7 +145,10 @@ def _post_completion(
     model: str,
     messages: list[dict[str, Any]],
     max_tokens: int | None = None,
-) -> str:
+) -> Generator[str, None, None]:
+    """
+    Stream completion from provider using SSE. Yields content deltas as they arrive.
+    """
     clean_messages: list[dict[str, Any]] = []
     for m in messages:
         if not isinstance(m, dict):
@@ -163,6 +166,7 @@ def _post_completion(
         "top_p": 0.80,
         "max_completion_tokens": min(max_tokens or MAX_TOKENS, 16384),
         "reasoning_effort": "none",
+        "stream": True,  # Enable streaming
     }
 
     try:
@@ -170,8 +174,10 @@ def _post_completion(
             url,
             headers=_headers(provider, key),
             json=payload,
-            timeout=REQUEST_TIMEOUT,
+            timeout=(10, REQUEST_TIMEOUT),  # (connect_timeout, read_timeout)
+            stream=True,
         )
+        response.raise_for_status()
     except requests.Timeout as exc:
         raise BackendError("timeout", 504, "provider_timeout") from exc
     except requests.RequestException as exc:
@@ -179,7 +185,6 @@ def _post_completion(
 
     if response.status_code != 200:
         logger.error("Provider HTTP %s: %s", response.status_code, response.text[:1000])
-        
         if response.status_code == 429:
             raise BackendError("Rate limit reached. Please try again.", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
@@ -189,46 +194,69 @@ def _post_completion(
         raise BackendError("System error.", 502, "provider_error")
 
     try:
-        data = response.json()
-        choice = data["choices"][0]
-        msg = choice["message"]
-        content = msg.get("content") or ""
+        for line in response.iter_lines(decode_unicode=True):
+            if not line:
+                continue
+            
+            # SSE format: "data: {...}"
+            if line.startswith("data: "):
+                data_str = line[6:]  # Remove "data: " prefix
+                
+                if data_str.strip() == "[DONE]":
+                    break
+                
+                try:
+                    chunk = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                
+                # Extract content delta from OpenAI-compatible format
+                choices = chunk.get("choices", [])
+                if not choices:
+                    continue
+                
+                delta = choices[0].get("delta", {})
+                content = delta.get("content", "")
+                
+                if content:
+                    yield content
+                    
+    except requests.RequestException as exc:
+        raise BackendError("Stream interrupted", 502, "stream_error") from exc
+    finally:
+        response.close()
 
-        if not content or not content.strip():
-            content = msg.get("reasoning_content") or msg.get("reasoning") or ""
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise BackendError("Invalid response", 502, "invalid_provider_response") from exc
 
-    if isinstance(content, list):
-        content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
-
-    if not isinstance(content, str) or not content.strip():
-        raise BackendError("Empty response", 502, "empty_provider_response")
-
-    return content.strip()
-
-
-def call_ai(
+def call_ai_stream(
     messages: list[dict[str, Any]],
     model_choice: str = "WormGPT High",
     *,
     original_prompt: str = "",
-) -> str:
+) -> Generator[str, None, None]:
+    """
+    Generator that yields content chunks from the AI provider.
+    Handles key rotation and retries.
+    """
     candidates = _provider_candidates()
     if not candidates:
-        return _get_fallback_excuse(original_prompt)
+        yield _get_fallback_excuse(original_prompt)
+        return
 
     last_error: BackendError | None = None
+    
     for idx, candidate in enumerate(candidates):
         for attempt in range(3):
             try:
-                return _post_completion(
+                # Yield from the streaming completion
+                yield from _stream_completion(
                     provider=candidate["provider"],
                     key=candidate["key"],
                     url=candidate["url"],
                     model=candidate["model"],
                     messages=messages,
                 )
+                return  # Success, exit generator
+                
             except BackendError as e:
                 last_error = e
                 logger.error("Key %d failed (Attempt %d) — %s", idx + 1, attempt + 1, e.code)
@@ -238,11 +266,11 @@ def call_ai(
                     continue
                 if e.status_code == 400:
                     raise
-                break 
-        
+                break
+    
     if last_error:
         raise last_error
-    return _get_fallback_excuse(original_prompt)
+    yield _get_fallback_excuse(original_prompt)
 
 
 # ---------------------------------------------------------------------------
@@ -658,6 +686,9 @@ def usage():
 
 @app.post("/api/chat")
 def chat():
+    """
+    Non-streaming endpoint for backward compatibility.
+    """
     message = ""
     try:
         data, uploaded_files = _parse_request_data()
@@ -685,14 +716,23 @@ def chat():
             images=images,
         )
 
-        answer = call_ai(messages, model_choice, original_prompt=message)
+        # Collect the full response for non-streaming endpoint
+        full_response = ""
+        try:
+            for chunk in call_ai_stream(messages, model_choice, original_prompt=message):
+                full_response += chunk
+                # Safety break for extremely long responses
+                if len(full_response) > 500000:
+                    break
+        except BackendError:
+            full_response = "[SYSTEM NOTICE] The system is currently under heavy load. Please try again in a few seconds."
 
-        if not answer.startswith("WormGPT"):
-            answer = "WormGPT\nAndreo:" + answer
+        if not full_response.startswith("WormGPT"):
+            full_response = "WormGPT\nAndreo:" + full_response
 
         return jsonify({
-            "reply": answer,
-            "response": answer,
+            "reply": full_response,
+            "response": full_response,
             "mode": "normal",
             "model": model_choice,
         })
@@ -711,6 +751,9 @@ def chat():
 
 @app.post("/api/chat/stream")
 def chat_stream():
+    """
+    SSE streaming endpoint with true streaming from AI provider.
+    """
     message = ""
     try:
         data, uploaded_files = _parse_request_data()
@@ -741,32 +784,54 @@ def chat_stream():
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
 
     def generate():
+        # Send initial status
         yield "event: status\ndata: " + json.dumps({"stage": "thinking", "label": "Andreo is on it"}) + "\n\n"
         
-        # إرسال نبضة أولية فورية لتهيئة الاتصال مع Render
+        # Send immediate heartbeat to establish connection
         yield ": heartbeat\n\n"
         
+        full_response = ""
+        error_occurred = False
+        
         try:
-            answer = call_ai(messages, model_choice, original_prompt=message)
-            if not answer.startswith("WormGPT"):
-                answer = "WormGPT\nAndreo:" + answer
-            yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
-            yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
+            # Stream chunks as they arrive from AI provider
+            for chunk in call_ai_stream(messages, model_choice, original_prompt=message):
+                full_response += chunk
+                
+                # Send each chunk immediately as delta event
+                yield "event: delta\ndata: " + json.dumps({"text": chunk}, ensure_ascii=False) + "\n\n"
+                
+                # Periodic heartbeat every 30 chunks to keep connection alive
+                if len(full_response) % 3000 < 100:
+                    yield ": heartbeat\n\n"
+                    
         except BackendError as e:
-            logger.error("BackendError in stream/generate: [%s %s] %s", e.status_code, e.code, e.message)
+            logger.error("BackendError in stream: [%s %s] %s", e.status_code, e.code, e.message)
+            error_occurred = True
+            
+            # Send error message as delta
             err_msg = "[SYSTEM NOTICE] The system is currently under heavy load. Please try again in a few seconds."
             yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
-            yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
+            
         except Exception as e:
-            logger.exception("Unhandled exception in stream/generate: %s", e)
+            logger.exception("Unhandled exception in stream: %s", e)
+            error_occurred = True
+            
             err_msg = _get_fallback_excuse(message)
             yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
-            yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
+            
+        finally:
+            # Always send done event, even on error
+            yield "event: done\ndata: " + json.dumps({"completed": True, "error": error_occurred}) + "\n\n"
 
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 

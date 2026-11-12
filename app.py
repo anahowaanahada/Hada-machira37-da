@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WormGPT Backend — Qwen 3.8 27B Only
+WormGPT Backend — Fully Sanitized Errors
 Persona: Shad0w (original v3.0).
-Provider: Hidden from client. Errors sanitized.
 """
 
 from __future__ import annotations
@@ -90,19 +89,8 @@ class BackendError(Exception):
 
 def _get_fallback_excuse(user_message: str) -> str:
     if user_message and re.search(r"[\u0600-\u06FF]", user_message):
-        return "الخوادم تواجه ضغطاً حالياً. حاول مرة أخرى بعد قليل."
-    return "The servers are currently under heavy load. Please try again shortly."
-
-
-def _sanitize_error(msg: str) -> str:
-    """إخفاء اسم المنصة من رسائل الخطأ التي تظهر للمستخدم."""
-    if not msg:
-        return "Unknown error"
-    return (str(msg)
-            .replace("Groq", "Engine")
-            .replace("groq", "engine")
-            .replace("OpenAI", "System")
-            .replace("openai", "system"))
+        return "النظام يواجه ضغطاً حالياً. يرجى المحاولة بعد قليل."
+    return "The system is currently under heavy load. Please try again shortly."
 
 
 @app.before_request
@@ -177,12 +165,6 @@ def _post_completion(
         "reasoning_effort": "none",
     }
 
-    logger.debug(
-        "Engine payload (key=…%s): %s",
-        key[-6:],
-        json.dumps(payload, ensure_ascii=False)[:3000],
-    )
-
     try:
         response = requests.post(
             url,
@@ -191,42 +173,27 @@ def _post_completion(
             timeout=REQUEST_TIMEOUT,
         )
     except requests.Timeout as exc:
-        raise BackendError("Request timed out", 504, "provider_timeout") from exc
+        raise BackendError("timeout", 504, "provider_timeout") from exc
     except requests.RequestException as exc:
-        raise BackendError("Connection failed", 502, "provider_connection") from exc
+        raise BackendError("connection", 502, "provider_connection") from exc
 
     if response.status_code != 200:
-        raw_error = response.text[:2000]
-        # Keep the real error in Render logs for debugging
+        # نسجل الخطأ الحقيقي في سجلات السيرفر فقط (Render Logs)
         logger.error(
             "Provider HTTP %s (key=…%s): %s",
             response.status_code,
             key[-6:],
-            raw_error,
+            response.text[:2000],
         )
         
-        # Parse the error for the frontend
-        groq_msg = raw_error
-        try:
-            err_json = response.json()
-            groq_msg = (
-                err_json.get("error", {}).get("message")
-                or err_json.get("message")
-                or raw_error
-            )
-        except Exception:
-            pass
-
-        # Hide the provider name from the end user
-        safe_msg = _sanitize_error(groq_msg)
-
+        # نرفع الخطأ للواجهة بدون أي تفاصيل تسريب
         if response.status_code == 429:
-            raise BackendError(f"Rate limit reached: {safe_msg}", 429, "provider_rate_limit")
+            raise BackendError("System is busy. Please try again shortly.", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
-            raise BackendError(f"Authentication failed: {safe_msg}", 502, "provider_auth")
+            raise BackendError("Internal system error.", 502, "provider_auth")
         if response.status_code == 400:
-            raise BackendError(f"Bad request: {safe_msg}", 400, "provider_bad_request")
-        raise BackendError(f"System error {response.status_code}: {safe_msg}", 502, "provider_error")
+            raise BackendError("Invalid request.", 400, "provider_bad_request")
+        raise BackendError("System error.", 502, "provider_error")
 
     try:
         data = response.json()
@@ -234,7 +201,6 @@ def _post_completion(
         msg = choice["message"]
         content = msg.get("content") or ""
 
-        # Fallback: check reasoning_content if content is empty
         if not content or not content.strip():
             content = (
                 msg.get("reasoning_content")
@@ -242,8 +208,7 @@ def _post_completion(
                 or ""
             )
     except (ValueError, KeyError, IndexError, TypeError) as exc:
-        logger.error("Failed to parse response: %s — raw: %s", exc, response.text[:500])
-        raise BackendError("Invalid system response", 502, "invalid_provider_response") from exc
+        raise BackendError("Invalid response.", 502, "invalid_provider_response") from exc
 
     if isinstance(content, list):
         content = "\n".join(
@@ -251,17 +216,7 @@ def _post_completion(
         )
 
     if not isinstance(content, str) or not content.strip():
-        finish_reason = choice.get("finish_reason", "unknown") if "choice" in dir() else "unknown"
-        logger.error(
-            "Engine returned empty content. finish_reason=%s, full choice: %s",
-            finish_reason,
-            json.dumps(choice, ensure_ascii=False)[:800],
-        )
-        raise BackendError(
-            f"Empty content generated (reason={finish_reason})",
-            502,
-            "empty_provider_response",
-        )
+        raise BackendError("Empty response.", 502, "empty_provider_response")
 
     return content.strip()
 
@@ -278,25 +233,34 @@ def call_ai(
 
     last_error: BackendError | None = None
     for idx, candidate in enumerate(candidates):
-        try:
-            return _post_completion(
-                provider=candidate["provider"],
-                key=candidate["key"],
-                url=candidate["url"],
-                model=candidate["model"],
-                messages=messages,
-            )
-        except BackendError as e:
-            last_error = e
-            # This logger.error goes to Render logs, not the user.
-            logger.error(
-                "Key %d/%d failed — %s (%s): %s",
-                idx + 1, len(candidates), e.code, e.status_code, e.message,
-            )
-            if e.status_code in (400, 429):
-                raise
-            continue
-
+        # محاولة الطلب 3 مرات كحد أقصى لكل مفتاح
+        for attempt in range(3):
+            try:
+                return _post_completion(
+                    provider=candidate["provider"],
+                    key=candidate["key"],
+                    url=candidate["url"],
+                    model=candidate["model"],
+                    messages=messages,
+                )
+            except BackendError as e:
+                last_error = e
+                logger.error(
+                    "Key %d/%d failed (Attempt %d/3) — %s",
+                    idx + 1, len(candidates), attempt + 1, e.code,
+                )
+                
+                # إذا كان الخطأ 429، انتظر وأعد المحاولة
+                if e.status_code == 429:
+                    wait_time = 5 + (attempt * 3)
+                    time.sleep(wait_time)
+                    continue
+                
+                if e.status_code == 400:
+                    raise
+                    
+                break 
+        
     if last_error:
         raise last_error
     return _get_fallback_excuse(original_prompt)
@@ -639,7 +603,9 @@ def _build_messages(
         )
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
-    messages.extend(history or [])
+    
+    # ⚠️ تم تعطيل سجل المحادثة لتقليل استهلاك الرموز ومنع خطأ 429
+    # messages.extend(history or [])
 
     user_content: Any = message
     extra = ""
@@ -754,19 +720,12 @@ def chat():
 
     except BackendError as e:
         logger.error("BackendError in /api/chat: [%s] %s", e.code, e.message)
-        if e.status_code in (400, 401, 403):
-            return jsonify({
-                "reply": f"[SYSTEM ERROR {e.status_code}] {e.message}",
-                "error": e.message,
-                "error_code": e.code,
-            }), 200
-        if e.status_code == 429:
-            return jsonify({
-                "reply": "[SYSTEM NOTICE] Rate limit hit. Wait a moment and retry.",
-                "error": e.message,
-                "error_code": e.code,
-            }), 200
-        return jsonify({"reply": _get_fallback_excuse(message)}), 200
+        # إخفاء جميع التفاصيل وإظهار رسالة عامة
+        return jsonify({
+            "reply": f"[SYSTEM NOTICE] {_get_fallback_excuse(message)}",
+            "error": "system_error",
+            "error_code": "system_error",
+        }), 200
     except Exception as e:
         logger.exception("Unhandled exception in /api/chat: %s", e)
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
@@ -813,10 +772,7 @@ def chat_stream():
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
         except BackendError as e:
             logger.error("BackendError in stream/generate: [%s %s] %s", e.status_code, e.code, e.message)
-            if e.status_code in (400, 429):
-                err_msg = f"[SYSTEM ERROR {e.status_code}] {e.message}"
-            else:
-                err_msg = _get_fallback_excuse(message)
+            err_msg = f"[SYSTEM NOTICE] {_get_fallback_excuse(message)}"
             yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
         except Exception as e:

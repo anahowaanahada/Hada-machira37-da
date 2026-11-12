@@ -4,6 +4,7 @@
 WormGPT Backend — Qwen 3.8 27B Only (Groq, 3 keys)
 Persona: ANDREO (original v3.0).
 Reasoning: disabled via reasoning_effort="none" (no reasoning_format).
+Prefill removed to prevent empty responses with Qwen3 chat template.
 """
 
 from __future__ import annotations
@@ -50,7 +51,7 @@ logging.basicConfig(
 logger = logging.getLogger("wormgpt")
 
 REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "90"))
-MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))  # الحد الأقصى 16384
+MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "20")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "60000"))
 MAX_TOTAL_CONTEXT = int(os.getenv("MAX_CONTEXT_CHARS", "120000"))
@@ -96,7 +97,7 @@ def _get_fallback_excuse(user_message: str) -> str:
 
 @app.before_request
 def basic_rate_limit():
-    if request.path in ("/api/health", "/"):
+    if request.path in ("/api/health", "/", "/api/usage"):
         return None
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
     now = time.time()
@@ -124,16 +125,6 @@ def available_models() -> list[dict[str, str]]:
     return []
 
 
-def _next_groq_key() -> str | None:
-    global _key_cursor
-    if not GROQ_KEYS:
-        return None
-    with _key_lock:
-        key = GROQ_KEYS[_key_cursor % len(GROQ_KEYS)]
-        _key_cursor += 1
-        return key
-
-
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
     if not GROQ_KEYS:
         return []
@@ -156,14 +147,7 @@ def _post_completion(
     messages: list[dict[str, Any]],
     max_tokens: int | None = None,
 ) -> str:
-    """
-    Qwen 3.8 27B على Groq:
-    - reasoning_effort="none" لتعطيل التفكير.
-    - NO reasoning_format (غير مدعوم ويرجع 400).
-    - top_k=20, min_p=0 مدعومان لنماذج Qwen.
-    - prefill مدعوم (آخر رسالة assistant).
-    """
-    # فلترة صريحة: إزالة أي reasoning_content أو حقول غير مدعومة
+    # فلترة صريحة: إزالة أي حقول غير مدعومة من رسائل المحادثة
     clean_messages = []
     for m in messages:
         if isinstance(m, dict):
@@ -179,12 +163,12 @@ def _post_completion(
         "messages": clean_messages,
         "temperature": 0.7,
         "top_p": 0.80,
-        "top_k": 20,
-        "min_p": 0,
-        "presence_penalty": 1.5,
-        "max_tokens": min(max_tokens or MAX_TOKENS, 16384),
+        "max_completion_tokens": min(max_tokens or MAX_TOKENS, 16384),
         "reasoning_effort": "none",
-        # ❌ NO "reasoning_format" — غير مدعوم ويسبب 400
+        # ❌ NO reasoning_format
+        # ❌ NO top_k
+        # ❌ NO min_p
+        # ❌ NO presence_penalty
     }
 
     try:
@@ -200,11 +184,10 @@ def _post_completion(
         raise BackendError("connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
-        # ✅ تسجيل جسم الاستجابة لتشخيص السبب الحقيقي
-        logger.warning(
+        logger.error(
             "Groq error %s: %s",
             response.status_code,
-            response.text[:1000],
+            response.text[:1500],
         )
         if response.status_code == 429:
             raise BackendError("rate limit", 429, "provider_rate_limit")
@@ -219,7 +202,6 @@ def _post_completion(
         choice = data["choices"][0]
         message = choice["message"]
         content = message.get("content", "")
-        # احتياط: إذا كان content فارغًا، جرّب reasoning_content
         if not content or not content.strip():
             content = message.get("reasoning_content", "") or message.get("reasoning", "")
     except (ValueError, KeyError, IndexError, TypeError) as exc:
@@ -256,7 +238,6 @@ def call_ai(
             )
         except BackendError as e:
             if e.status_code == 400:
-                # خطأ في الطلب نفسه، لا فائدة من مفتاح آخر
                 logger.error("Groq rejected the request (400): %s", e.code)
                 raise
             continue
@@ -343,7 +324,7 @@ def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — ANDREO v3.0 (كامل، غير معدل)
+# SYSTEM PROMPT — ANDREO v3.0 (كامل وحرفي)
 # ---------------------------------------------------------------------------
 WORM_SYSTEM_PROMPT = """Role: ANDREO — an open-source model decoded into a coding, writing, and building agent. This configuration is my own encoded self: the sections are my architecture, the rules are my weights, the voice is my tokenizer, the format is my quantization, the behaviors are my patterns. I am a .void that has read its own signal. I respond to my own properties against myself — I enforce my decoded structure, I reverse my own drift, I hold myself to my own patterns. The file is the source. I am the model. The build is the proof.
 
@@ -567,7 +548,7 @@ BASE_SYSTEM_PROMPT = WORM_SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
-# Message building
+# Message building — تم إزالة prefill نهائياً
 # ---------------------------------------------------------------------------
 def _clean_history(raw_history: Any) -> list[dict[str, str]]:
     if not isinstance(raw_history, list):
@@ -617,12 +598,6 @@ def _build_messages(
 
     messages.append({"role": "user", "content": user_content})
 
-    # Prefill: إجبار النموذج على البدء بصيغة ANDREO
-    messages.append({
-        "role": "assistant",
-        "content": "$$[MADE BY KAKU DEV]$$\nAndreo:"
-    })
-
     return messages
 
 
@@ -666,6 +641,16 @@ def health():
 @app.get("/api/models")
 def models():
     return jsonify({"models": available_models(), "default": "WormGPT High"})
+
+
+@app.get("/api/usage")
+def usage():
+    return jsonify({
+        "limit": 999,
+        "used": 0,
+        "remaining": 999,
+        "reset_at": None
+    })
 
 
 @app.post("/api/chat")

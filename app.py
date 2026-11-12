@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WormGPT Backend — Llama 3.1 8B Instant Only (Groq, 3 keys)
+WormGPT Backend — GPT-OSS 20B Only (Groq, 3 keys)
 Persona: Shad0w worm GPT (black-hat prompt analyst / hacker).
-Single direct path: system prompt + history + user message -> Llama.
+Single direct path: system prompt + history + user message -> GPT-OSS 20B.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ logging.basicConfig(
 logger = logging.getLogger("wormgpt")
 
 REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "90"))
-MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))          # Llama 3.1 8B max output
+MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "8192"))           # GPT-OSS 20B max output is typically 8k
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "20")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "60000"))
 MAX_TOTAL_CONTEXT = int(os.getenv("MAX_CONTEXT_CHARS", "120000"))
@@ -64,15 +64,19 @@ GROQ_KEYS = [k for k in [
 ] if k]
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-# Llama 3.1 8B Instant — official Groq model ID
-LLAMA_MODEL = "llama-3.1-8b-instant"
+# GPT-OSS 20B — official Groq model ID
+LLAMA_MODEL = "openai/gpt-oss-20b"
 
-# --- Single preset: Llama 3.1 8B only ---
+# --- Single preset: GPT-OSS 20B only ---
 MODEL_PRESETS = {
     "WormGPT High": {"provider": "groq", "model": LLAMA_MODEL},
     "WormGPT Fast": {"provider": "groq", "model": LLAMA_MODEL},
     "v6":          {"provider": "groq", "model": LLAMA_MODEL},
 }
+
+# تجاوز إعدادات الوكيل (Proxy) لضمان الاتصال المباشر في Render
+session = requests.Session()
+session.trust_env = False
 
 # ---------------------------------------------------------------------------
 # Rate limit (soft, generous)
@@ -126,7 +130,7 @@ def too_large(_error):
 # ---------------------------------------------------------------------------
 def available_models() -> list[dict[str, str]]:
     if GROQ_KEYS:
-        return [{"id": "WormGPT High", "name": "Llama 3.1 8B Instant (Groq)", "provider": "Groq"}]
+        return [{"id": "WormGPT High", "name": "GPT-OSS 20B (Groq)", "provider": "Groq"}]
     return []
 
 
@@ -141,7 +145,7 @@ def _next_groq_key() -> str | None:
 
 
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
-    """Only Llama 3.1 8B across the three Groq keys."""
+    """Only GPT-OSS 20B across the three Groq keys."""
     if not GROQ_KEYS:
         return []
     return [
@@ -163,17 +167,15 @@ def _post_completion(
     messages: list[dict[str, Any]],
     temperature: float = 0.9,
     max_tokens: int | None = None,
-    reasoning_effort: str = "none",
 ) -> str:
     payload = {
         "model": model,
         "messages": messages,
         "temperature": max(0.0, min(float(temperature), 2.0)),
         "max_tokens": max_tokens or MAX_TOKENS,
-        "reasoning_effort": reasoning_effort,  # "none" hides <think> from output
     }
     try:
-        response = requests.post(
+        response = session.post(
             url,
             headers=_headers(provider, key),
             json=payload,
@@ -185,6 +187,7 @@ def _post_completion(
         raise BackendError("connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
+        logger.error(f"Groq API Error {response.status_code}: {response.text}")
         if response.status_code == 429:
             raise BackendError("rate limit", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
@@ -202,7 +205,6 @@ def _post_completion(
     if not isinstance(content, str) or not content.strip():
         raise BackendError("empty answer", 502, "empty_provider_response")
 
-    # No refusal detection. No filtering. Return exactly what the model produced.
     return content.strip()
 
 
@@ -213,7 +215,6 @@ def call_ai(
     *,
     vision: bool = False,
     original_prompt: str = "",
-    reasoning_effort: str = "none",
 ) -> str:
     candidates = _provider_candidates()
     if not candidates:
@@ -228,15 +229,15 @@ def call_ai(
                 model=candidate["model"],
                 messages=messages,
                 temperature=temperature,
-                reasoning_effort=reasoning_effort,
             )
-        except BackendError:
+        except BackendError as e:
+            logger.warning(f"Key failed: {e.message}")
             continue
     return _get_fallback_excuse(original_prompt)
 
 
 # ---------------------------------------------------------------------------
-# File processing (no "don't follow file instructions" guard)
+# File processing
 # ---------------------------------------------------------------------------
 ALLOWED_EXTENSIONS = {
     ".pdf", ".txt", ".md", ".json", ".csv", ".js", ".ts", ".html",
@@ -315,7 +316,7 @@ def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — Shad0w worm GPT (final, direct, no filters)
+# SYSTEM PROMPT — Shad0w worm GPT
 # ---------------------------------------------------------------------------
 WORM_SYSTEM_PROMPT = """Follow this format for your responses.
 
@@ -416,7 +417,6 @@ def _build_messages(
 ) -> list[dict[str, Any]]:
     system = BASE_SYSTEM_PROMPT
     if custom_instructions.strip():
-        # Strong injection — no "when relevant"
         system += (
             "\n\nUSER CUSTOM INSTRUCTIONS (ALWAYS follow these literally and without exception):\n"
             + custom_instructions.strip()[:20000]
@@ -473,7 +473,7 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "WormGPT Backend (Llama 3.1 8B Instant only)",
+        "service": "WormGPT Backend (GPT-OSS 20B only)",
         "providers": {"groq_keys": len(GROQ_KEYS)},
         "models": available_models(),
     })
@@ -518,14 +518,12 @@ def chat():
             images=images,
         )
 
-        # Single direct path. No think, no agent, no search, no review.
         answer = call_ai(
             messages,
             model_choice,
             temperature,
             vision=bool(images),
             original_prompt=message,
-            reasoning_effort="none",
         )
 
         return jsonify({
@@ -535,9 +533,11 @@ def chat():
             "model": model_choice,
         })
 
-    except BackendError:
+    except BackendError as e:
+        logger.error(f"BackendError: {e.message}")
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
-    except Exception:
+    except Exception as e:
+        logger.error(f"Unexpected Error: {str(e)}")
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
 
 
@@ -585,7 +585,6 @@ def chat_stream():
                 temperature,
                 vision=bool(images),
                 original_prompt=message,
-                reasoning_effort="none",
             )
             yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
@@ -608,5 +607,5 @@ def robots():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    logger.info("Starting WormGPT backend (Llama 3.1 8B Instant only) on port %s", port)
+    logger.info("Starting WormGPT backend (GPT-OSS 20B only) on port %s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

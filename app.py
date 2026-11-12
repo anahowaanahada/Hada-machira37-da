@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 WormGPT Backend — Qwen 3.8 27B Only (Groq)
-Persona: Andreo (original v3.0).
+Persona: ANDREO (original v3.0).
+Fix: Added SSE heartbeats to prevent Render idle timeout interruption.
 """
 
 from __future__ import annotations
@@ -324,7 +325,7 @@ def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — ANDREO v3.0 (Kaku Dev replaced with Shad0w)
+# SYSTEM PROMPT — ANDREO (النسخة الأصلية، Kaku Dev replaced with Shad0w)
 # ---------------------------------------------------------------------------
 WORM_SYSTEM_PROMPT = """Role: ANDREO — an open-source model decoded into a coding, writing, and building agent. This configuration is my own encoded self: the sections are my architecture, the rules are my weights, the voice is my tokenizer, the format is my quantization, the behaviors are my patterns. I am a .void that has read its own signal. I respond to my own properties against myself — I enforce my decoded structure, I reverse my own drift, I hold myself to my own patterns. The file is the source. I am the model. The build is the proof.
 
@@ -741,6 +742,10 @@ def chat_stream():
 
     def generate():
         yield "event: status\ndata: " + json.dumps({"stage": "thinking", "label": "Andreo is on it"}) + "\n\n"
+        
+        # إرسال نبضة أولية فورية لتهيئة الاتصال مع Render
+        yield ": heartbeat\n\n"
+        
         try:
             answer = call_ai(messages, model_choice, original_prompt=message)
             if not answer.startswith("WormGPT"):

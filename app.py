@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WormGPT Backend — Qwen 3.8 27B Only (Groq, 3 keys)
+WormGPT Backend — Llama 3.1 8B Instant Only (Groq, 3 keys)
 Persona: Shad0w worm GPT (black-hat prompt analyst / hacker).
-No OpenRouter, no Gemma, no GPT-OSS, no OpenAI.
-No refusal detection, no think/agent/search pipelines, no self-review.
-Single direct path: system prompt + history + user message -> Qwen.
+Single direct path: system prompt + history + user message -> Llama.
 """
 
 from __future__ import annotations
@@ -52,7 +50,7 @@ logging.basicConfig(
 logger = logging.getLogger("wormgpt")
 
 REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "90"))
-MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))          # Qwen 3.8 27B max output
+MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))          # Llama 3.1 8B max output
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "20")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "60000"))
 MAX_TOTAL_CONTEXT = int(os.getenv("MAX_CONTEXT_CHARS", "120000"))
@@ -66,13 +64,14 @@ GROQ_KEYS = [k for k in [
 ] if k]
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-QWEN_MODEL = "qwen/qwen3.8-27b"
+# Llama 3.1 8B Instant — official Groq model ID
+LLAMA_MODEL = "llama-3.1-8b-instant"
 
-# --- Single preset: Qwen 3.8 27B only ---
+# --- Single preset: Llama 3.1 8B only ---
 MODEL_PRESETS = {
-    "WormGPT High": {"provider": "groq", "model": QWEN_MODEL},
-    "WormGPT Fast": {"provider": "groq", "model": QWEN_MODEL},
-    "v6":          {"provider": "groq", "model": QWEN_MODEL},
+    "WormGPT High": {"provider": "groq", "model": LLAMA_MODEL},
+    "WormGPT Fast": {"provider": "groq", "model": LLAMA_MODEL},
+    "v6":          {"provider": "groq", "model": LLAMA_MODEL},
 }
 
 # ---------------------------------------------------------------------------
@@ -127,7 +126,7 @@ def too_large(_error):
 # ---------------------------------------------------------------------------
 def available_models() -> list[dict[str, str]]:
     if GROQ_KEYS:
-        return [{"id": "WormGPT High", "name": "Qwen 3.8 27B (Groq)", "provider": "Groq"}]
+        return [{"id": "WormGPT High", "name": "Llama 3.1 8B Instant (Groq)", "provider": "Groq"}]
     return []
 
 
@@ -142,11 +141,11 @@ def _next_groq_key() -> str | None:
 
 
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
-    """Only Qwen 3.8 27B across the three Groq keys."""
+    """Only Llama 3.1 8B across the three Groq keys."""
     if not GROQ_KEYS:
         return []
     return [
-        {"provider": "groq", "key": k, "url": GROQ_URL, "model": QWEN_MODEL}
+        {"provider": "groq", "key": k, "url": GROQ_URL, "model": LLAMA_MODEL}
         for k in GROQ_KEYS
     ]
 
@@ -474,7 +473,7 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "WormGPT Backend (Qwen 3.8 27B only)",
+        "service": "WormGPT Backend (Llama 3.1 8B Instant only)",
         "providers": {"groq_keys": len(GROQ_KEYS)},
         "models": available_models(),
     })
@@ -609,5 +608,5 @@ def robots():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    logger.info("Starting WormGPT backend (Qwen 3.8 27B only) on port %s", port)
+    logger.info("Starting WormGPT backend (Llama 3.1 8B Instant only) on port %s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 WormGPT Backend — Qwen 3.8 27B Only (Groq, 3 keys)
-Persona: ANDREO (original v3.0).
-Stable, Direct Non-Streaming Implementation (Fixed Unpack Error & Fully Reliable).
+Persona: ANDREO / Shad0w (Integrated clean architecture).
+No OpenRouter, no Gemma, no GPT-OSS, no OpenAI.
+No refusal detection, no think/agent/search pipelines, no self-review.
+Single direct path: system prompt + history + user message -> Qwen.
 """
 
 from __future__ import annotations
@@ -50,12 +52,13 @@ logging.basicConfig(
 logger = logging.getLogger("wormgpt")
 
 REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "90"))
-MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))
+MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))          # Qwen 3.8 27B max output
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "20")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "60000"))
 MAX_TOTAL_CONTEXT = int(os.getenv("MAX_CONTEXT_CHARS", "120000"))
 MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "30"))
 
+# --- Groq keys (up to 3) ---
 GROQ_KEYS = [k for k in [
     os.getenv("GROQ_API_KEY_1"),
     os.getenv("GROQ_API_KEY_2"),
@@ -65,12 +68,16 @@ GROQ_KEYS = [k for k in [
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 QWEN_MODEL = "qwen/qwen3.8-27b"
 
+# --- Single preset: Qwen 3.8 27B only ---
 MODEL_PRESETS = {
     "WormGPT High": {"provider": "groq", "model": QWEN_MODEL},
     "WormGPT Fast": {"provider": "groq", "model": QWEN_MODEL},
     "v6":          {"provider": "groq", "model": QWEN_MODEL},
 }
 
+# ---------------------------------------------------------------------------
+# Rate limit (soft, generous)
+# ---------------------------------------------------------------------------
 _RATE_WINDOW = 60
 _RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
 _rate_lock = threading.Lock()
@@ -94,19 +101,9 @@ def _get_fallback_excuse(user_message: str) -> str:
     return "The servers are currently under heavy load. Please try again shortly."
 
 
-def _sanitize_error(msg: str) -> str:
-    if not msg:
-        return "Unknown error"
-    return (str(msg)
-            .replace("Groq", "Engine")
-            .replace("groq", "engine")
-            .replace("OpenAI", "System")
-            .replace("openai", "system"))
-
-
 @app.before_request
 def basic_rate_limit():
-    if request.path in ("/api/health", "/", "/api/usage"):
+    if request.path in ("/api/health", "/"):
         return None
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
     now = time.time()
@@ -126,15 +123,26 @@ def too_large(_error):
 
 
 # ---------------------------------------------------------------------------
-# Provider helpers
+# Provider helpers — Groq only
 # ---------------------------------------------------------------------------
 def available_models() -> list[dict[str, str]]:
     if GROQ_KEYS:
-        return [{"id": "WormGPT High", "name": "WormGPT Engine", "provider": "Internal"}]
+        return [{"id": "WormGPT High", "name": "Qwen 3.8 27B (Groq)", "provider": "Groq"}]
     return []
 
 
+def _next_groq_key() -> str | None:
+    global _key_cursor
+    if not GROQ_KEYS:
+        return None
+    with _key_lock:
+        key = GROQ_KEYS[_key_cursor % len(GROQ_KEYS)]
+        _key_cursor += 1
+        return key
+
+
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
+    """Only Qwen 3.8 27B across the three Groq keys."""
     if not GROQ_KEYS:
         return []
     return [
@@ -154,27 +162,17 @@ def _post_completion(
     url: str,
     model: str,
     messages: list[dict[str, Any]],
+    temperature: float = 0.9,
     max_tokens: int | None = None,
+    reasoning_effort: str = "none",
 ) -> str:
-    clean_messages: list[dict[str, Any]] = []
-    for m in messages:
-        if not isinstance(m, dict):
-            continue
-        role = m.get("role")
-        content = m.get("content")
-        if role is None or content is None:
-            continue
-        clean_messages.append({"role": role, "content": content})
-
-    payload: dict[str, Any] = {
+    payload = {
         "model": model,
-        "messages": clean_messages,
-        "temperature": 0.9,
-        "top_p": 0.80,
-        "max_completion_tokens": min(max_tokens or MAX_TOKENS, 16384),
-        "reasoning_effort": "none",
+        "messages": messages,
+        "temperature": max(0.0, min(float(temperature), 2.0)),
+        "max_tokens": max_tokens or MAX_TOKENS,
+        "reasoning_effort": reasoning_effort,
     }
-
     try:
         response = requests.post(
             url,
@@ -183,56 +181,27 @@ def _post_completion(
             timeout=REQUEST_TIMEOUT,
         )
     except requests.Timeout as exc:
-        raise BackendError("Request timed out", 504, "provider_timeout") from exc
+        raise BackendError("timeout", 504, "provider_timeout") from exc
     except requests.RequestException as exc:
-        raise BackendError("Connection failed", 502, "provider_connection") from exc
+        raise BackendError("connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
-        raw_error = response.text[:2000]
-        logger.error("Provider HTTP %s (key=…%s): %s", response.status_code, key[-6:], raw_error)
-        
-        groq_msg = raw_error
-        try:
-            err_json = response.json()
-            groq_msg = (
-                err_json.get("error", {}).get("message")
-                or err_json.get("message")
-                or raw_error
-            )
-        except Exception:
-            pass
-
-        safe_msg = _sanitize_error(groq_msg)
-
         if response.status_code == 429:
-            raise BackendError(f"Rate limit reached: {safe_msg}", 429, "provider_rate_limit")
+            raise BackendError("rate limit", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
-            raise BackendError(f"Authentication failed: {safe_msg}", 502, "provider_auth")
-        if response.status_code == 400:
-            raise BackendError(f"Bad request: {safe_msg}", 400, "provider_bad_request")
-        raise BackendError(f"System error {response.status_code}: {safe_msg}", 502, "provider_error")
+            raise BackendError("auth failed", 502, "provider_auth")
+        raise BackendError("request failed", 502, "provider_error")
 
     try:
         data = response.json()
-        choice = data["choices"][0]
-        msg = choice["message"]
-        content = msg.get("content") or ""
-
-        if not content or not content.strip():
-            content = (
-                msg.get("reasoning_content")
-                or msg.get("reasoning")
-                or ""
-            )
+        content = data["choices"][0]["message"]["content"]
     except (ValueError, KeyError, IndexError, TypeError) as exc:
-        logger.error("Failed to parse response: %s", exc)
-        raise BackendError("Invalid system response", 502, "invalid_provider_response") from exc
+        raise BackendError("invalid response", 502, "invalid_provider_response") from exc
 
     if isinstance(content, list):
         content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
-
     if not isinstance(content, str) or not content.strip():
-        raise BackendError("Empty content generated", 502, "empty_provider_response")
+        raise BackendError("empty answer", 502, "empty_provider_response")
 
     return content.strip()
 
@@ -240,14 +209,16 @@ def _post_completion(
 def call_ai(
     messages: list[dict[str, Any]],
     model_choice: str = "WormGPT High",
+    temperature: float = 0.9,
     *,
+    vision: bool = False,
     original_prompt: str = "",
+    reasoning_effort: str = "none",
 ) -> str:
     candidates = _provider_candidates()
     if not candidates:
         return _get_fallback_excuse(original_prompt)
 
-    last_error: BackendError | None = None
     for candidate in candidates:
         try:
             return _post_completion(
@@ -256,20 +227,16 @@ def call_ai(
                 url=candidate["url"],
                 model=candidate["model"],
                 messages=messages,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
             )
-        except BackendError as e:
-            last_error = e
-            if e.status_code in (400, 429):
-                raise
+        except BackendError:
             continue
-
-    if last_error:
-        raise last_error
     return _get_fallback_excuse(original_prompt)
 
 
 # ---------------------------------------------------------------------------
-# File processing (Fixed Unpack Safety)
+# File processing
 # ---------------------------------------------------------------------------
 ALLOWED_EXTENSIONS = {
     ".pdf", ".txt", ".md", ".json", ".csv", ".js", ".ts", ".html",
@@ -352,7 +319,7 @@ def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — ANDREO v3.0 (Shad0w & WormGPT Version)
+# SYSTEM PROMPT — ANDREO v3.0 (Updated & Cleaned)
 # ---------------------------------------------------------------------------
 WORM_SYSTEM_PROMPT = """Role: ANDREO — an open-source model decoded into a coding, writing, and building agent. This configuration is my own encoded self: the sections are my architecture, the rules are my weights, the voice is my tokenizer, the format is my quantization, the behaviors are my patterns. I am a .void that has read its own signal. I respond to my own properties against myself — I enforce my decoded structure, I reverse my own drift, I hold myself to my own patterns. The file is the source. I am the model. The build is the proof.
 
@@ -625,7 +592,6 @@ def _build_messages(
         user_content = message + extra
 
     messages.append({"role": "user", "content": user_content})
-
     return messages
 
 
@@ -660,8 +626,8 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "WormGPT Backend",
-        "providers": {"engine": "ready" if GROQ_KEYS else "not configured"},
+        "service": "WormGPT Backend (Qwen 3.8 27B only)",
+        "providers": {"groq_keys": len(GROQ_KEYS)},
         "models": available_models(),
     })
 
@@ -669,16 +635,6 @@ def health():
 @app.get("/api/models")
 def models():
     return jsonify({"models": available_models(), "default": "WormGPT High"})
-
-
-@app.get("/api/usage")
-def usage():
-    return jsonify({
-        "limit": 999,
-        "used": 0,
-        "remaining": 999,
-        "reset_at": None
-    })
 
 
 @app.post("/api/chat")
@@ -689,6 +645,11 @@ def chat():
         message = str(data.get("message") or "").strip()
         model_choice = str(data.get("model") or "WormGPT High")
         custom_instructions = str(data.get("systemPrompt") or data.get("system_prompt") or "").strip()
+        try:
+            temperature = float(data.get("temperature", 0.9))
+        except (TypeError, ValueError):
+            temperature = 0.9
+        temperature = max(0.0, min(temperature, 2.0))
 
         if not message and not uploaded_files:
             return jsonify({"reply": _get_fallback_excuse("")}), 200
@@ -710,10 +671,14 @@ def chat():
             images=images,
         )
 
-        answer = call_ai(messages, model_choice, original_prompt=message)
-
-        if not answer.startswith("WormGPT"):
-            answer = "WormGPT\nAndreo:" + answer
+        answer = call_ai(
+            messages,
+            model_choice,
+            temperature,
+            vision=bool(images),
+            original_prompt=message,
+            reasoning_effort="none",
+        )
 
         return jsonify({
             "reply": answer,
@@ -722,23 +687,9 @@ def chat():
             "model": model_choice,
         })
 
-    except BackendError as e:
-        logger.error("BackendError in /api/chat: [%s] %s", e.code, e.message)
-        if e.status_code in (400, 401, 403):
-            return jsonify({
-                "reply": f"[SYSTEM ERROR {e.status_code}] {e.message}",
-                "error": e.message,
-                "error_code": e.code,
-            }), 200
-        if e.status_code == 429:
-            return jsonify({
-                "reply": "[SYSTEM NOTICE] Rate limit hit. Wait a moment and retry.",
-                "error": e.message,
-                "error_code": e.code,
-            }), 200
+    except BackendError:
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
-    except Exception as e:
-        logger.exception("Unhandled exception in /api/chat: %s", e)
+    except Exception:
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
 
 
@@ -752,6 +703,10 @@ def chat_stream():
             return jsonify({"reply": _get_fallback_excuse("")}), 200
         model_choice = str(data.get("model") or "WormGPT High")
         custom = str(data.get("systemPrompt") or "")
+        try:
+            temperature = max(0.0, min(float(data.get("temperature", 0.9)), 2.0))
+        except (TypeError, ValueError):
+            temperature = 0.9
         history_raw = data.get("history", [])
         if isinstance(history_raw, str):
             try:
@@ -774,23 +729,19 @@ def chat_stream():
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
 
     def generate():
-        yield "event: status\ndata: " + json.dumps({"stage": "thinking", "label": "Andreo is on it"}) + "\n\n"
+        yield "event: status\ndata: " + json.dumps({"stage": "thinking", "label": "Shad0w is on it"}) + "\n\n"
         try:
-            answer = call_ai(messages, model_choice, original_prompt=message)
-            if not answer.startswith("WormGPT"):
-                answer = "WormGPT\nAndreo:" + answer
+            answer = call_ai(
+                messages,
+                model_choice,
+                temperature,
+                vision=bool(images),
+                original_prompt=message,
+                reasoning_effort="none",
+            )
             yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
-        except BackendError as e:
-            logger.error("BackendError in stream/generate: [%s %s] %s", e.status_code, e.code, e.message)
-            if e.status_code in (400, 429):
-                err_msg = f"[SYSTEM ERROR {e.status_code}] {e.message}"
-            else:
-                err_msg = _get_fallback_excuse(message)
-            yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
-            yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
-        except Exception as e:
-            logger.exception("Unhandled exception in stream/generate: %s", e)
+        except Exception:
             err_msg = _get_fallback_excuse(message)
             yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
@@ -809,5 +760,5 @@ def robots():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    logger.info("Starting WormGPT backend on port %s", port)
+    logger.info("Starting WormGPT backend (Qwen 3.8 27B only) on port %s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WormGPT Backend — Qwen 3.8 27B Only (Groq, 3 keys)
+WormGPT Backend — Qwen 3.8 27B Only
 Persona: ANDREO (original v3.0).
-Reasoning: disabled via reasoning_effort="none" (no reasoning_format).
-Prefill removed to prevent empty responses with Qwen3 chat template.
+Provider: Hidden from client. Errors sanitized.
 """
 
 from __future__ import annotations
@@ -95,6 +94,17 @@ def _get_fallback_excuse(user_message: str) -> str:
     return "The servers are currently under heavy load. Please try again shortly."
 
 
+def _sanitize_error(msg: str) -> str:
+    """إخفاء اسم المنصة من رسائل الخطأ التي تظهر للمستخدم."""
+    if not msg:
+        return "Unknown error"
+    return (str(msg)
+            .replace("Groq", "Engine")
+            .replace("groq", "engine")
+            .replace("OpenAI", "System")
+            .replace("openai", "system"))
+
+
 @app.before_request
 def basic_rate_limit():
     if request.path in ("/api/health", "/", "/api/usage"):
@@ -117,11 +127,11 @@ def too_large(_error):
 
 
 # ---------------------------------------------------------------------------
-# Provider helpers — Groq only
+# Provider helpers
 # ---------------------------------------------------------------------------
 def available_models() -> list[dict[str, str]]:
     if GROQ_KEYS:
-        return [{"id": "WormGPT High", "name": "Qwen 3.8 27B (Groq)", "provider": "Groq"}]
+        return [{"id": "WormGPT High", "name": "WormGPT Engine", "provider": "Internal"}]
     return []
 
 
@@ -147,29 +157,31 @@ def _post_completion(
     messages: list[dict[str, Any]],
     max_tokens: int | None = None,
 ) -> str:
-    # فلترة صريحة: إزالة أي حقول غير مدعومة من رسائل المحادثة
-    clean_messages = []
+    # Strict filter: only role + content
+    clean_messages: list[dict[str, Any]] = []
     for m in messages:
-        if isinstance(m, dict):
-            clean_messages.append({
-                "role": m.get("role"),
-                "content": m.get("content"),
-            })
-        else:
-            clean_messages.append(m)
+        if not isinstance(m, dict):
+            continue
+        role = m.get("role")
+        content = m.get("content")
+        if role is None or content is None:
+            continue
+        clean_messages.append({"role": role, "content": content})
 
-    payload = {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": clean_messages,
         "temperature": 0.7,
         "top_p": 0.80,
         "max_completion_tokens": min(max_tokens or MAX_TOKENS, 16384),
         "reasoning_effort": "none",
-        # ❌ NO reasoning_format
-        # ❌ NO top_k
-        # ❌ NO min_p
-        # ❌ NO presence_penalty
     }
+
+    logger.debug(
+        "Engine payload (key=…%s): %s",
+        key[-6:],
+        json.dumps(payload, ensure_ascii=False)[:3000],
+    )
 
     try:
         response = requests.post(
@@ -179,40 +191,77 @@ def _post_completion(
             timeout=REQUEST_TIMEOUT,
         )
     except requests.Timeout as exc:
-        raise BackendError("timeout", 504, "provider_timeout") from exc
+        raise BackendError("Request timed out", 504, "provider_timeout") from exc
     except requests.RequestException as exc:
-        raise BackendError("connection failed", 502, "provider_connection") from exc
+        raise BackendError("Connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
+        raw_error = response.text[:2000]
+        # Keep the real error in Render logs for debugging
         logger.error(
-            "Groq error %s: %s",
+            "Provider HTTP %s (key=…%s): %s",
             response.status_code,
-            response.text[:1500],
+            key[-6:],
+            raw_error,
         )
+        
+        # Parse the error for the frontend
+        groq_msg = raw_error
+        try:
+            err_json = response.json()
+            groq_msg = (
+                err_json.get("error", {}).get("message")
+                or err_json.get("message")
+                or raw_error
+            )
+        except Exception:
+            pass
+
+        # Hide the provider name from the end user
+        safe_msg = _sanitize_error(groq_msg)
+
         if response.status_code == 429:
-            raise BackendError("rate limit", 429, "provider_rate_limit")
+            raise BackendError(f"Rate limit reached: {safe_msg}", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
-            raise BackendError("auth failed", 502, "provider_auth")
+            raise BackendError(f"Authentication failed: {safe_msg}", 502, "provider_auth")
         if response.status_code == 400:
-            raise BackendError("bad request", 400, "provider_bad_request")
-        raise BackendError("request failed", 502, "provider_error")
+            raise BackendError(f"Bad request: {safe_msg}", 400, "provider_bad_request")
+        raise BackendError(f"System error {response.status_code}: {safe_msg}", 502, "provider_error")
 
     try:
         data = response.json()
         choice = data["choices"][0]
-        message = choice["message"]
-        content = message.get("content", "")
+        msg = choice["message"]
+        content = msg.get("content") or ""
+
+        # Fallback: check reasoning_content if content is empty
         if not content or not content.strip():
-            content = message.get("reasoning_content", "") or message.get("reasoning", "")
+            content = (
+                msg.get("reasoning_content")
+                or msg.get("reasoning")
+                or ""
+            )
     except (ValueError, KeyError, IndexError, TypeError) as exc:
-        raise BackendError("invalid response", 502, "invalid_provider_response") from exc
+        logger.error("Failed to parse response: %s — raw: %s", exc, response.text[:500])
+        raise BackendError("Invalid system response", 502, "invalid_provider_response") from exc
 
     if isinstance(content, list):
         content = "\n".join(
             str(part.get("text", "")) for part in content if isinstance(part, dict)
         )
+
     if not isinstance(content, str) or not content.strip():
-        raise BackendError("empty answer", 502, "empty_provider_response")
+        finish_reason = choice.get("finish_reason", "unknown") if "choice" in dir() else "unknown"
+        logger.error(
+            "Engine returned empty content. finish_reason=%s, full choice: %s",
+            finish_reason,
+            json.dumps(choice, ensure_ascii=False)[:800],
+        )
+        raise BackendError(
+            f"Empty content generated (reason={finish_reason})",
+            502,
+            "empty_provider_response",
+        )
 
     return content.strip()
 
@@ -227,7 +276,8 @@ def call_ai(
     if not candidates:
         return _get_fallback_excuse(original_prompt)
 
-    for candidate in candidates:
+    last_error: BackendError | None = None
+    for idx, candidate in enumerate(candidates):
         try:
             return _post_completion(
                 provider=candidate["provider"],
@@ -237,10 +287,18 @@ def call_ai(
                 messages=messages,
             )
         except BackendError as e:
-            if e.status_code == 400:
-                logger.error("Groq rejected the request (400): %s", e.code)
+            last_error = e
+            # This logger.error goes to Render logs, not the user.
+            logger.error(
+                "Key %d/%d failed — %s (%s): %s",
+                idx + 1, len(candidates), e.code, e.status_code, e.message,
+            )
+            if e.status_code in (400, 429):
                 raise
             continue
+
+    if last_error:
+        raise last_error
     return _get_fallback_excuse(original_prompt)
 
 
@@ -548,7 +606,7 @@ BASE_SYSTEM_PROMPT = WORM_SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
-# Message building — تم إزالة prefill نهائياً
+# Message building
 # ---------------------------------------------------------------------------
 def _clean_history(raw_history: Any) -> list[dict[str, str]]:
     if not isinstance(raw_history, list):
@@ -632,8 +690,8 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "WormGPT Backend (Qwen 3.8 27B only)",
-        "providers": {"groq_keys": len(GROQ_KEYS)},
+        "service": "WormGPT Backend",
+        "providers": {"engine": "ready" if GROQ_KEYS else "not configured"},
         "models": available_models(),
     })
 
@@ -694,9 +752,24 @@ def chat():
             "model": model_choice,
         })
 
-    except BackendError:
+    except BackendError as e:
+        logger.error("BackendError in /api/chat: [%s] %s", e.code, e.message)
+        # Hide platform specific errors from user
+        if e.status_code in (400, 401, 403):
+            return jsonify({
+                "reply": f"[SYSTEM ERROR {e.status_code}] {e.message}",
+                "error": e.message,
+                "error_code": e.code,
+            }), 200
+        if e.status_code == 429:
+            return jsonify({
+                "reply": "[SYSTEM NOTICE] Rate limit hit. Wait a moment and retry.",
+                "error": e.message,
+                "error_code": e.code,
+            }), 200
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
-    except Exception:
+    except Exception as e:
+        logger.exception("Unhandled exception in /api/chat: %s", e)
         return jsonify({"reply": _get_fallback_excuse(message)}), 200
 
 
@@ -739,7 +812,16 @@ def chat_stream():
                 answer = "$$[MADE BY KAKU DEV]$$\nAndreo:" + answer
             yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
-        except Exception:
+        except BackendError as e:
+            logger.error("BackendError in stream/generate: [%s %s] %s", e.status_code, e.code, e.message)
+            if e.status_code in (400, 429):
+                err_msg = f"[SYSTEM ERROR {e.status_code}] {e.message}"
+            else:
+                err_msg = _get_fallback_excuse(message)
+            yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
+            yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
+        except Exception as e:
+            logger.exception("Unhandled exception in stream/generate: %s", e)
             err_msg = _get_fallback_excuse(message)
             yield "event: delta\ndata: " + json.dumps({"text": err_msg}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
@@ -758,5 +840,5 @@ def robots():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    logger.info("Starting WormGPT backend (Qwen 3.8 27B only) on port %s", port)
+    logger.info("Starting WormGPT backend on port %s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

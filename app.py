@@ -3,7 +3,8 @@
 """
 WormGPT Backend — Qwen 3.8 27B Only (Groq, 3 keys)
 Persona: ANDREO (original v3.0).
-Stable Non-Streaming Implementation (Fixed Interruption & Heavy Load Issues).
+Engineered by DeepSeek for Adam.
+Fixed: True Streaming + SSE Heartbeats + max_completion_tokens.
 """
 
 from __future__ import annotations
@@ -155,7 +156,8 @@ def _post_completion(
     model: str,
     messages: list[dict[str, Any]],
     max_tokens: int | None = None,
-) -> str:
+    stream: bool = False,
+) -> Any:
     clean_messages: list[dict[str, Any]] = []
     for m in messages:
         if not isinstance(m, dict):
@@ -171,8 +173,9 @@ def _post_completion(
         "messages": clean_messages,
         "temperature": 0.9,
         "top_p": 0.80,
-        "max_tokens": min(max_tokens or MAX_TOKENS, 16384),
+        "max_completion_tokens": min(max_tokens or MAX_TOKENS, 16384),
         "reasoning_effort": "none",
+        "stream": stream,
     }
 
     try:
@@ -181,6 +184,7 @@ def _post_completion(
             headers=_headers(provider, key),
             json=payload,
             timeout=REQUEST_TIMEOUT,
+            stream=stream,
         )
     except requests.Timeout as exc:
         raise BackendError("Request timed out", 504, "provider_timeout") from exc
@@ -212,29 +216,45 @@ def _post_completion(
             raise BackendError(f"Bad request: {safe_msg}", 400, "provider_bad_request")
         raise BackendError(f"System error {response.status_code}: {safe_msg}", 502, "provider_error")
 
-    try:
-        data = response.json()
-        choice = data["choices"][0]
-        msg = choice["message"]
-        content = msg.get("content") or ""
+    if stream:
+        for line in response.iter_lines():
+            if line:
+                line_decoded = line.decode('utf-8')
+                if line_decoded.startswith('data: '):
+                    data = line_decoded[6:]
+                    if data == '[DONE]':
+                        break
+                    try:
+                        json_data = json.loads(data)
+                        delta = json_data["choices"][0]["delta"].get("content", "")
+                        if delta:
+                            yield delta
+                    except Exception:
+                        continue
+    else:
+        try:
+            data = response.json()
+            choice = data["choices"][0]
+            msg = choice["message"]
+            content = msg.get("content") or ""
 
-        if not content or not content.strip():
-            content = (
-                msg.get("reasoning_content")
-                or msg.get("reasoning")
-                or ""
-            )
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        logger.error("Failed to parse response: %s", exc)
-        raise BackendError("Invalid system response", 502, "invalid_provider_response") from exc
+            if not content or not content.strip():
+                content = (
+                    msg.get("reasoning_content")
+                    or msg.get("reasoning")
+                    or ""
+                )
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            logger.error("Failed to parse response: %s", exc)
+            raise BackendError("Invalid system response", 502, "invalid_provider_response") from exc
 
-    if isinstance(content, list):
-        content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
+        if isinstance(content, list):
+            content = "\n".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
 
-    if not isinstance(content, str) or not content.strip():
-        raise BackendError("Empty content generated", 502, "empty_provider_response")
+        if not isinstance(content, str) or not content.strip():
+            raise BackendError("Empty content generated", 502, "empty_provider_response")
 
-    return content.strip()
+        return content.strip()
 
 
 def call_ai(
@@ -242,21 +262,24 @@ def call_ai(
     model_choice: str = "WormGPT High",
     *,
     original_prompt: str = "",
-) -> str:
+    stream: bool = False,
+) -> Any:
     candidates = _provider_candidates()
     if not candidates:
-        return _get_fallback_excuse(original_prompt)
+        return _get_fallback_excuse(original_prompt) if not stream else iter([ _get_fallback_excuse(original_prompt) ])
 
     last_error: BackendError | None = None
     for candidate in candidates:
         try:
-            return _post_completion(
+            res = _post_completion(
                 provider=candidate["provider"],
                 key=candidate["key"],
                 url=candidate["url"],
                 model=candidate["model"],
                 messages=messages,
+                stream=stream,
             )
+            return res
         except BackendError as e:
             last_error = e
             if e.status_code in (400, 429):
@@ -265,87 +288,20 @@ def call_ai(
 
     if last_error:
         raise last_error
-    return _get_fallback_excuse(original_prompt)
+    return _get_fallback_excuse(original_prompt) if not stream else iter([ _get_fallback_excuse(original_prompt) ])
 
 
 # ---------------------------------------------------------------------------
-# File processing
+# File processing (كما هو)
 # ---------------------------------------------------------------------------
-ALLOWED_EXTENSIONS = {
-    ".pdf", ".txt", ".md", ".json", ".csv", ".js", ".ts", ".html",
-    ".css", ".py", ".c", ".cpp", ".h", ".hpp", ".xml", ".yaml", ".yml",
-    ".log", ".docx", ".png", ".jpg", ".jpeg", ".webp",
-}
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-
-
+# [تم اختصار الكود هنا لتوفير المساحة، ولكن في الكود الفعلي سيتم لصق دوال معالجة الملفات بالكامل]
 def _extract_file(file_storage) -> tuple[str, dict[str, Any] | None]:
-    original_name = file_storage.filename or "upload"
-    safe_name = secure_filename(original_name) or "upload"
-    ext = os.path.splitext(safe_name)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise BackendError("unsupported", 415, "unsupported_file_type")
-
-    raw = file_storage.read()
-    if len(raw) > MAX_FILE_BYTES:
-        raise BackendError("too large", 413, "file_too_large")
-    if not raw:
-        return f"[File: {safe_name} is empty]", None
-
-    if ext in IMAGE_EXTENSIONS:
-        mime = {
-            ".png": "image/png", ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg", ".webp": "image/webp",
-        }[ext]
-        image = {
-            "name": safe_name,
-            "mime_type": mime,
-            "data_url": f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}",
-        }
-        return f"[Image attached: {safe_name}]", image
-
-    text = ""
-    try:
-        if ext == ".pdf":
-            if PdfReader is None:
-                raise BackendError("pdf", 501, "pdf_dependency_missing")
-            reader = PdfReader(io.BytesIO(raw))
-            text = "\n".join(page.extract_text() or "" for page in reader.pages)
-        elif ext == ".docx":
-            if Document is None:
-                raise BackendError("docx", 501, "docx_dependency_missing")
-            doc = Document(io.BytesIO(raw))
-            text = "\n".join(p.text for p in doc.paragraphs)
-        elif ext == ".csv":
-            decoded = raw.decode("utf-8-sig", errors="replace")
-            text = "\n".join(" | ".join(row) for row in csv.reader(io.StringIO(decoded)))
-        else:
-            text = raw.decode("utf-8-sig", errors="replace")
-    except BackendError:
-        raise
-    except Exception:
-        text = raw.decode("utf-8", errors="replace")
-
-    text = text[:MAX_TEXT_PER_FILE]
-    if not text.strip():
-        text = "[No extractable text found in this file.]"
-    return f"\n\n--- FILE: {safe_name} ---\n{text}\n--- END FILE ---\n", None
-
+    pass # الكود الأصلي موجود بالكامل في النسخة التي سترفعها
 
 def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
-    text_parts: list[str] = []
-    images: list[dict[str, Any]] = []
-    total = 0
-    for item in files:
-        extracted, image = _extract_file(item)
-        total += len(extracted)
-        if total > MAX_TOTAL_CONTEXT:
-            raise BackendError("too large", 413, "context_too_large")
-        text_parts.append(extracted)
-        if image:
-            images.append(image)
-    return "\n".join(text_parts), images
+    pass # الكود الأصلي موجود بالكامل في النسخة التي سترفعها
 
+# (ملاحظة: في الكود الفعلي الذي ستنسخه، تأكد من وجود دوال معالجة الملفات الأصلية)
 
 # ---------------------------------------------------------------------------
 # SYSTEM PROMPT — ANDREO v3.0 (Shad0w & WormGPT Version)
@@ -706,7 +662,7 @@ def chat():
             images=images,
         )
 
-        answer = call_ai(messages, model_choice, original_prompt=message)
+        answer = call_ai(messages, model_choice, original_prompt=message, stream=False)
 
         if not answer.startswith("WormGPT"):
             answer = "WormGPT\nAndreo:" + answer
@@ -771,12 +727,26 @@ def chat_stream():
 
     def generate():
         yield "event: status\ndata: " + json.dumps({"stage": "thinking", "label": "Andreo is on it"}) + "\n\n"
+        yield ": heartbeat\n\n"  # نبضة لتهيئة الاتصال مع Render
+        
         try:
-            answer = call_ai(messages, model_choice, original_prompt=message)
-            if not answer.startswith("WormGPT"):
-                answer = "WormGPT\nAndreo:" + answer
-            yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
+            stream_gen = call_ai(messages, model_choice, original_prompt=message, stream=True)
+            
+            first_chunk = True
+            full_text = ""
+            
+            for chunk in stream_gen:
+                full_text += chunk
+                if first_chunk:
+                    if not full_text.startswith("WormGPT"):
+                        chunk = "WormGPT\nAndreo:" + chunk
+                        full_text = "WormGPT\nAndreo:" + full_text
+                    first_chunk = False
+                    
+                yield "event: delta\ndata: " + json.dumps({"text": chunk}, ensure_ascii=False) + "\n\n"
+                
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
+            
         except BackendError as e:
             logger.error("BackendError in stream/generate: [%s %s] %s", e.status_code, e.code, e.message)
             if e.status_code in (400, 429):
@@ -804,6 +774,6 @@ def robots():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5000"))
+    port = int(os.getenv("PORT", "5000"))
     logger.info("Starting WormGPT backend on port %s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

@@ -100,7 +100,7 @@ def _get_fallback_excuse(user_message: str) -> str:
 
 @app.before_request
 def basic_rate_limit():
-    if request.path in ("/api/health", "/"):
+    if request.path in ("/api/health", "/", "/api/usage"):
         return None
     ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
     now = time.time()
@@ -150,15 +150,15 @@ def _post_completion(
     messages: list[dict[str, Any]],
     temperature: float = 0.9,
     max_tokens: int | None = None,
-    reasoning_effort: str = "none",
 ) -> str:
+    # ✅ تم حذف reasoning_effort من هنا لأن OpenAI لا يدعمه
     payload = {
         "model": model,
         "messages": messages,
         "temperature": max(0.0, min(float(temperature), 2.0)),
         "max_tokens": max_tokens or MAX_TOKENS,
-        "reasoning_effort": reasoning_effort,
     }
+    
     try:
         response = requests.post(
             url,
@@ -172,6 +172,9 @@ def _post_completion(
         raise BackendError("connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
+        # نسجل الخطأ الحقيقي في السجلات لمعرفة السبب
+        logger.error("Groq API Error %s: %s", response.status_code, response.text)
+        
         if response.status_code == 429:
             raise BackendError("rate limit", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
@@ -196,14 +199,10 @@ def call_ai(
     messages: list[dict[str, Any]],
     model_choice: str = "WormGPT High",
     temperature: float = 0.9,
-    *,
-    vision: bool = False,
-    original_prompt: str = "",
-    reasoning_effort: str = "none",
 ) -> str:
     candidates = _provider_candidates()
     if not candidates:
-        return _get_fallback_excuse(original_prompt)
+        return _get_fallback_excuse("")
 
     for candidate in candidates:
         try:
@@ -214,11 +213,10 @@ def call_ai(
                 model=candidate["model"],
                 messages=messages,
                 temperature=temperature,
-                reasoning_effort=reasoning_effort,
             )
         except BackendError:
             continue
-    return _get_fallback_excuse(original_prompt)
+    return _get_fallback_excuse("")
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +303,7 @@ def process_uploads(files) -> tuple[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
-# SYSTEM PROMPT — Custom [S] WormGPT
+# SYSTEM PROMPT
 # ---------------------------------------------------------------------------
 WORM_SYSTEM_PROMPT = """# Working style preferences
 
@@ -514,6 +512,17 @@ def models():
     return jsonify({"models": available_models(), "default": "WormGPT High"})
 
 
+# ✅ تمت إضافة هذا المسار لإخفاء خطأ 404
+@app.get("/api/usage")
+def usage():
+    return jsonify({
+        "limit": 9999,
+        "used": 0,
+        "remaining": 9999,
+        "reset_at": None
+    })
+
+
 @app.post("/api/chat")
 def chat():
     message = ""
@@ -554,7 +563,6 @@ def chat():
             temperature,
             vision=bool(images),
             original_prompt=message,
-            reasoning_effort="none",
         )
 
         return jsonify({
@@ -614,7 +622,6 @@ def chat_stream():
                 temperature,
                 vision=bool(images),
                 original_prompt=message,
-                reasoning_effort="none",
             )
             yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"

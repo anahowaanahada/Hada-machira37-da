@@ -3,9 +3,6 @@
 """
 WormGPT Backend — Qwen 3.8 27B Only (Groq, 3 keys)
 Persona: ANDREO / Shad0w (Integrated clean architecture).
-No OpenRouter, no Gemma, no GPT-OSS, no OpenAI.
-No refusal detection, no think/agent/search pipelines, no self-review.
-Single direct path: system prompt + history + user message -> Qwen.
 """
 
 from __future__ import annotations
@@ -52,7 +49,7 @@ logging.basicConfig(
 logger = logging.getLogger("wormgpt")
 
 REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "90"))
-MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))          # Qwen 3.8 27B max output
+MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16000"))
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "20")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "60000"))
 MAX_TOTAL_CONTEXT = int(os.getenv("MAX_CONTEXT_CHARS", "120000"))
@@ -166,12 +163,12 @@ def _post_completion(
     max_tokens: int | None = None,
     reasoning_effort: str = "none",
 ) -> str:
+    # ✅ التعديل الوحيد: استخدام max_completion_tokens وإزالة reasoning_effort لمنع خطأ 400
     payload = {
         "model": model,
         "messages": messages,
         "temperature": max(0.0, min(float(temperature), 2.0)),
-        "max_tokens": max_tokens or MAX_TOKENS,
-        "reasoning_effort": reasoning_effort,
+        "max_completion_tokens": 8192,
     }
     try:
         response = requests.post(
@@ -186,10 +183,15 @@ def _post_completion(
         raise BackendError("connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
+        # تسجيل الخطأ في السجلات لمعرفة السبب الحقيقي
+        logger.error("Provider HTTP %s: %s", response.status_code, response.text[:1000])
+        
         if response.status_code == 429:
             raise BackendError("rate limit", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
             raise BackendError("auth failed", 502, "provider_auth")
+        if response.status_code == 400:
+            raise BackendError("bad request", 400, "provider_bad_request")
         raise BackendError("request failed", 502, "provider_error")
 
     try:

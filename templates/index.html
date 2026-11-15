@@ -2613,7 +2613,7 @@ function persistMessage(id,patch){
   if(chat){if(!state.settings.privacyMode&&state.settings.saveHistory)store.set("wormgpt-sessions",state.chats)}
   else saveActiveChat();
 }
-function shellHtml(label){return `<div class="avatar">${logoSVG}</div><div class="body"><div class="content" dir="auto"><div class="thinking"><span class="spinner"></span><span>${esc(label)}</span></div></div></div>`}
+function shellHtml(){return `<div class="avatar">${logoSVG}</div><div class="body"><div class="content" dir="auto"><div class="thinking"><span>Shad0w is thinking</span><span aria-hidden="true" style="display:inline-flex;gap:2px;margin-inline-start:2px"><span style="animation:typing-blink .85s steps(2,start) infinite">.</span><span style="animation:typing-blink .85s steps(2,start) .2s infinite">.</span><span style="animation:typing-blink .85s steps(2,start) .4s infinite">.</span></span></div></div></div>`}
 function dropEmptyActiveChat(){
   if(state.messages.length)return;
   state.chats=state.chats.filter(c=>c.id!==state.activeChatId);
@@ -2633,7 +2633,7 @@ async function sendMessage(){
   renderMessage(userMsg);if(typeof syncEmptyStage==="function")syncEmptyStage();clearComposer();saveActiveChat();renderRecents();
   const aId=uid();state.messages.push({id:aId,role:"assistant",content:"",time:Date.now()});
   const shell=document.createElement("div");shell.className="msg";shell.id=aId;
-  shell.innerHTML=shellHtml(t("preparing"));
+  shell.innerHTML=shellHtml();
   threadInner.appendChild(shell);queueAvatarPaint(threadInner);scrollBottom();
   try{
     const result=await runAssistant(aId,text,files,{userId:userMsg.id,signal:state.abortController?.signal});
@@ -2655,10 +2655,6 @@ async function sendMessage(){
   }
 }
 function target(id){return document.getElementById(id)?.querySelector(".content")||null}
-function statusLabel(item){
-  const keys={thinking:"statusThinking",search:"statusSearch",agent:"statusAgent",planning:"statusPlanning",analysis:"statusAnalysis",review:"statusReview",generating:"statusGenerating"};
-  return item.label||(keys[item.stage]?t(keys[item.stage]):t("statusWorking"));
-}
 function failureText(err){
   const code=err?.code||"";
   if(location.protocol==="file:")return [t("backendTitle"),t("backendFile")];
@@ -2727,37 +2723,67 @@ async function runAssistant(id,prompt,files,opts={}){
   }
 }
 async function consumeStream(id,r,onUsage){
-  const reader=r.body.getReader(),decoder=new TextDecoder();let buffer="",answer="",failure=null;
+  const reader=r.body.getReader(),decoder=new TextDecoder();
+  let buffer="",answer="",failure=null,receivedDelta=false,completed=false;
+  const renderDelta=()=>{
+    const el=target(id);
+    if(!el)return;
+    state.partialOut=answer;
+    el.innerHTML=mdToHtml(answer)+'<span class="typing-cursor" aria-hidden="true"></span>';
+    const thread=$("#thread");
+    if(state.settings.autoScroll&&nearBottom(thread))scrollBottom();
+  };
   const handleEvent=raw=>{
-    let event="message",data="";
+    let event="message";
+    const dataLines=[];
     for(const line of raw.split(/\r?\n/)){
       if(line.startsWith("event:"))event=line.slice(6).trim();
-      else if(line.startsWith("data:"))data+=line.slice(5).replace(/^ /,"");
+      else if(line.startsWith("data:"))dataLines.push(line.slice(5).replace(/^ /,""));
     }
-    if(!data)return;
-    let item={};try{item=JSON.parse(data)}catch{return}
-    if(event==="status"){if(!answer){const el=target(id);if(el)el.innerHTML=`<div class="thinking"><span class="spinner"></span><span>${esc(statusLabel(item))}</span></div>`}}
-    else if(event==="delta"){if(typeof item.text==="string")answer+=item.text}
-    else if(event==="usage"){applyUsage(item);onUsage()}
-    else if(event==="error"){failure=new ApiFailure(item.error||"upstream_error",item.message||item.error||"Backend task failed")}
+    if(!dataLines.length)return;
+    const data=dataLines.join("\n");
+    let item={};
+    try{item=JSON.parse(data)}catch{return}
+    if(event==="delta"){
+      if(typeof item.text==="string"&&item.text.length){
+        if(!receivedDelta){
+          receivedDelta=true;
+          const el=target(id);
+          if(el)el.innerHTML="";
+        }
+        answer+=item.text;
+        renderDelta();
+      }
+    }else if(event==="done"){
+      completed=item.completed!==false;
+    }else if(event==="usage"){
+      applyUsage(item);onUsage();
+    }else if(event==="error"){
+      failure=new ApiFailure(item.error||"upstream_error",item.message||item.error||"Backend task failed");
+    }
   };
   try{
     while(true){
       const {value,done}=await reader.read();
       if(done)break;
       buffer+=decoder.decode(value,{stream:true});
-      const chunks=buffer.split(/\r?\n\r?\n/);buffer=chunks.pop()||"";
+      const chunks=buffer.split(/\r?\n\r?\n/);
+      buffer=chunks.pop()||"";
       for(const chunk of chunks)handleEvent(chunk);
     }
-    buffer+=decoder.decode();if(buffer.trim())handleEvent(buffer);
-  }catch(netErr){failure=failure||new ApiFailure("network_error",netErr?.message||"Connection lost")}
+    buffer+=decoder.decode();
+    if(buffer.trim())handleEvent(buffer);
+  }catch(netErr){
+    failure=failure||new ApiFailure("network_error",netErr?.message||"Connection lost");
+  }
   if(answer.trim()){
-    // Keep the thinking indicator visible while the server generates, then reveal the
-    // completed answer with the same typewriter treatment used by the JSON fallback.
     const finalText=failure?answer+"\n\n> "+t("interrupted"):answer;
-    await stream(id,finalText,{keepThinking:true});
-    if(failure)persistMessage(id,{partial:true});
+    finish(id,finalText,{partial:!!failure});
+    state.partialOut="";
     return "ok";
+  }
+  if(completed&&!answer.trim()){
+    throw new ApiFailure("empty_response","Backend completed without returning an answer");
   }
   throw failure||new ApiFailure("empty_response","Backend completed without returning an answer");
 }

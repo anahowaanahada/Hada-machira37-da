@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WormGPT Backend — OpenRouter (Gemma 4 31B)
+WormGPT Backend — Groq (Qwen 3.8 27B)
 Clean Version (No Streaming Statuses, Fixed 404)
 """
 
@@ -49,22 +49,27 @@ logging.basicConfig(
 logger = logging.getLogger("wormgpt")
 
 REQUEST_TIMEOUT = int(os.getenv("MODEL_TIMEOUT_SECONDS", "120"))
-MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "16384"))           
+MAX_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", "8192"))
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_MB", "20")) * 1024 * 1024
 MAX_TEXT_PER_FILE = int(os.getenv("MAX_EXTRACTED_CHARS_PER_FILE", "60000"))
 MAX_TOTAL_CONTEXT = int(os.getenv("MAX_CONTEXT_CHARS", "120000"))
 MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "30"))
 
-# --- OpenRouter Config ---
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_MODEL = "google/gemma-4-31b-it"
+# --- Groq Config ---
+GROQ_KEYS = [k for k in [
+    os.getenv("GROQ_API_KEY_1"),
+    os.getenv("GROQ_API_KEY_2"),
+    os.getenv("GROQ_API_KEY_3"),
+] if k]
+
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+QWEN_MODEL = "qwen/qwen3.8-27b"
 
 # --- Single preset ---
 MODEL_PRESETS = {
-    "WormGPT High": {"provider": "openrouter", "model": OPENROUTER_MODEL},
-    "WormGPT Fast": {"provider": "openrouter", "model": OPENROUTER_MODEL},
-    "v6":          {"provider": "openrouter", "model": OPENROUTER_MODEL},
+    "WormGPT High": {"provider": "groq", "model": QWEN_MODEL},
+    "WormGPT Fast": {"provider": "groq", "model": QWEN_MODEL},
+    "v6":          {"provider": "groq", "model": QWEN_MODEL},
 }
 
 session = requests.Session()
@@ -77,6 +82,9 @@ _RATE_WINDOW = 60
 _RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
 _rate_lock = threading.Lock()
 _rate_hits: dict[str, deque[float]] = defaultdict(deque)
+
+_key_lock = threading.Lock()
+_key_cursor = 0
 
 
 class BackendError(Exception):
@@ -118,31 +126,32 @@ def too_large(_error):
 # Provider helpers
 # ---------------------------------------------------------------------------
 def available_models() -> list[dict[str, str]]:
-    if OPENROUTER_API_KEY:
-        return [{"id": "WormGPT High", "name": "Gemma 4 31B (OpenRouter)", "provider": "OpenRouter"}]
+    if GROQ_KEYS:
+        return [{"id": "WormGPT High", "name": "Qwen 3.8 27B (Groq)", "provider": "Groq"}]
     return []
 
 
+def _next_groq_key() -> str | None:
+    global _key_cursor
+    if not GROQ_KEYS:
+        return None
+    with _key_lock:
+        key = GROQ_KEYS[_key_cursor % len(GROQ_KEYS)]
+        _key_cursor += 1
+        return key
+
+
 def _provider_candidates(preferred: str | None = None) -> list[dict[str, Any]]:
-    if not OPENROUTER_API_KEY:
+    if not GROQ_KEYS:
         return []
     return [
-        {
-            "provider": "openrouter",
-            "key": OPENROUTER_API_KEY,
-            "url": OPENROUTER_URL,
-            "model": OPENROUTER_MODEL,
-        }
+        {"provider": "groq", "key": k, "url": GROQ_URL, "model": QWEN_MODEL}
+        for k in GROQ_KEYS
     ]
 
 
 def _headers(provider: str, key: str) -> dict[str, str]:
-    return {
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://wormgpt.onrender.com", 
-        "X-Title": "WormGPT",
-    }
+    return {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
 
 def _post_completion(
@@ -154,12 +163,14 @@ def _post_completion(
     messages: list[dict[str, Any]],
     temperature: float = 0.9,
     max_tokens: int | None = None,
+    reasoning_effort: str = "none",
 ) -> str:
     payload = {
         "model": model,
         "messages": messages,
         "temperature": max(0.0, min(float(temperature), 2.0)),
         "max_tokens": max_tokens or MAX_TOKENS,
+        "reasoning_effort": reasoning_effort,
     }
     try:
         response = session.post(
@@ -174,11 +185,13 @@ def _post_completion(
         raise BackendError("connection failed", 502, "provider_connection") from exc
 
     if response.status_code != 200:
-        logger.error(f"OpenRouter API Error {response.status_code}: {response.text}")
+        logger.error(f"Groq API Error {response.status_code}: {response.text}")
         if response.status_code == 429:
             raise BackendError("rate limit", 429, "provider_rate_limit")
         if response.status_code in (401, 403):
             raise BackendError("auth failed", 502, "provider_auth")
+        if response.status_code == 402:
+            raise BackendError("insufficient credits", 402, "provider_credits")
         raise BackendError("request failed", 502, "provider_error")
 
     try:
@@ -202,6 +215,7 @@ def call_ai(
     *,
     vision: bool = False,
     original_prompt: str = "",
+    reasoning_effort: str = "none",
 ) -> str:
     candidates = _provider_candidates()
     if not candidates:
@@ -216,9 +230,10 @@ def call_ai(
                 model=candidate["model"],
                 messages=messages,
                 temperature=temperature,
+                reasoning_effort=reasoning_effort,
             )
         except BackendError as e:
-            logger.warning(f"OpenRouter key failed: {e.message}")
+            logger.warning(f"Groq key failed: {e.message}")
             continue
     return _get_fallback_excuse(original_prompt)
 
@@ -702,8 +717,8 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "service": "WormGPT Backend (OpenRouter + Gemma 4 31B)",
-        "providers": {"openrouter": bool(OPENROUTER_API_KEY)},
+        "service": "WormGPT Backend (Groq + Qwen 3.8 27B)",
+        "providers": {"groq_keys": len(GROQ_KEYS)},
         "models": available_models(),
     })
 
@@ -770,6 +785,7 @@ def chat():
             temperature,
             vision=bool(images),
             original_prompt=message,
+            reasoning_effort="none",
         )
 
         return jsonify({
@@ -830,6 +846,7 @@ def chat_stream():
                 temperature,
                 vision=bool(images),
                 original_prompt=message,
+                reasoning_effort="none",
             )
             yield "event: delta\ndata: " + json.dumps({"text": answer}, ensure_ascii=False) + "\n\n"
             yield "event: done\ndata: " + json.dumps({"completed": True}) + "\n\n"
@@ -852,5 +869,5 @@ def robots():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
-    logger.info("Starting WormGPT backend (OpenRouter + Gemma 4 31B) on port %s", port)
+    logger.info("Starting WormGPT backend (Groq + Qwen 3.8 27B) on port %s", port)
     app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

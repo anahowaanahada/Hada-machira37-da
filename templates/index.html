@@ -2724,14 +2724,28 @@ async function runAssistant(id,prompt,files,opts={}){
 }
 async function consumeStream(id,r,onUsage){
   const reader=r.body.getReader(),decoder=new TextDecoder();
-  let buffer="",answer="",failure=null,receivedDelta=false,completed=false;
-  const renderDelta=()=>{
+  let buffer="",answer="",visibleAnswer="",pendingText="",failure=null,receivedDelta=false,completed=false,streamEnded=false;
+  let typingTask=null;
+  const renderVisible=()=>{
     const el=target(id);
     if(!el)return;
-    state.partialOut=answer;
-    el.innerHTML=mdToHtml(answer)+'<span class="typing-cursor" aria-hidden="true"></span>';
+    state.partialOut=visibleAnswer;
+    el.innerHTML=mdToHtml(visibleAnswer)+'<span class="typing-cursor" aria-hidden="true"></span>';
     const thread=$("#thread");
     if(state.settings.autoScroll&&nearBottom(thread))scrollBottom();
+  };
+  // Reveal complete words as they arrive instead of painting each network chunk at once.
+  const typeWords=async()=>{
+    while(!streamEnded||pendingText.length){
+      let match=pendingText.match(/^(\s*\S+\s+)/);
+      if(!match&&streamEnded&&pendingText.length)match=[pendingText,pendingText];
+      if(!match){await wait(24);continue}
+      const word=match[0];
+      pendingText=pendingText.slice(word.length);
+      visibleAnswer+=word;
+      renderVisible();
+      await wait(68);
+    }
   };
   const handleEvent=raw=>{
     let event="message";
@@ -2750,9 +2764,10 @@ async function consumeStream(id,r,onUsage){
           receivedDelta=true;
           const el=target(id);
           if(el)el.innerHTML="";
+          typingTask=typeWords();
         }
         answer+=item.text;
-        renderDelta();
+        pendingText+=item.text;
       }
     }else if(event==="done"){
       completed=item.completed!==false;
@@ -2776,6 +2791,8 @@ async function consumeStream(id,r,onUsage){
   }catch(netErr){
     failure=failure||new ApiFailure("network_error",netErr?.message||"Connection lost");
   }
+  streamEnded=true;
+  if(typingTask)await typingTask;
   if(answer.trim()){
     const finalText=failure?answer+"\n\n> "+t("interrupted"):answer;
     finish(id,finalText,{partial:!!failure});
